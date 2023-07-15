@@ -15,6 +15,7 @@ enum ReadMode {
 }
 
 #[derive(Display)]
+#[derive(PartialEq)]
 pub enum JsonTokenType {
     PropertyName,
     StringValue,
@@ -211,8 +212,7 @@ impl JsonStreamLexer {
                     ReadMode::String => {
                         let token_type = if self.property_name_toggle && !array_toggle {
                             JsonTokenType::PropertyName
-                        }
-                        else {
+                        } else {
                             JsonTokenType::StringValue
                         };
                         
