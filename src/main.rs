@@ -17,7 +17,7 @@ fn main() -> io::Result<()> {
 }
 
 fn find() {
-    let mut json_getter = JsonGet::new("name");
+    let mut json_getter = JsonGet::new("batters");
     let mut lines = io::stdin().lock().lines();
 
     let mut json_lexer = JsonStreamLexer::new();
@@ -116,13 +116,14 @@ struct JsonGet {
     path: LinkedList<JsonPathComponent>,
     current_token: JsonPathComponent,
     parse_mode: JsonGetParseMode,
+    captured_tokens: Vec<JsonStreamToken>,
 }
 
 impl JsonGet {
     fn new(path: &str) -> JsonGet {
         let mut path = process_path(path);
         if let Some(starting_token) = path.pop_front() {
-            JsonGet { path: path, current_token: starting_token, parse_mode: JsonGetParseMode::Search }
+            JsonGet { path: path, current_token: starting_token, parse_mode: JsonGetParseMode::Search, captured_tokens: Vec::new() }
         } else {
             panic!("path isn't supported")
         }
@@ -132,52 +133,42 @@ impl JsonGet {
         match stream {
             JsonStream::None => {}
             JsonStream::Single(token) => {
-                if token.token_type == JsonTokenType::PropertyName && self.parse_mode == JsonGetParseMode::Search {
-                    if let JsonPathComponent::PropertyName(name) = &self.current_token {
-                        if token.token_parsed.eq(name) {
-                            if let Some(next_token) = self.path.pop_front() {
-                                self.current_token = next_token;
-                            } else {
-                                self.parse_mode = JsonGetParseMode::Capture;
-                            }
-                        }
-                    }
-                } else if self.parse_mode == JsonGetParseMode::Capture && (token.token_type == JsonTokenType::StringValue || token.token_type == JsonTokenType::NumberValue) {
-                    return Some(token.token_parsed);
+                if self.process_token(&token) {
+                    self.captured_tokens.push(token);
                 }
             }
             JsonStream::Double(token1, token2) => {
-                if token1.token_type == JsonTokenType::PropertyName {
-                    if let JsonPathComponent::PropertyName(name) = &self.current_token {
-                        if token1.token_parsed.eq(name) {
-                            if let Some(next_token) = self.path.pop_front() {
-                                self.current_token = next_token;
-                            } else {
-                                self.parse_mode = JsonGetParseMode::Capture;
-                            }
-                        }
-                    }
-                } else if self.parse_mode == JsonGetParseMode::Capture && (token1.token_type == JsonTokenType::StringValue || token1.token_type == JsonTokenType::NumberValue) {
-                    return Some(token1.token_parsed);
+                if self.process_token(&token1) {
+                    self.captured_tokens.push(token1);
                 }
 
-                if token2.token_type == JsonTokenType::PropertyName {
-                    if let JsonPathComponent::PropertyName(name) = &self.current_token {
-                        if token2.token_parsed.eq(name) {
-                            if let Some(next_token) = self.path.pop_front() {
-                                self.current_token = next_token;
-                            } else {
-                                self.parse_mode = JsonGetParseMode::Capture;
-                            }
-                        }
-                    }
-                } else if self.parse_mode == JsonGetParseMode::Capture && (token2.token_type == JsonTokenType::StringValue || token2.token_type == JsonTokenType::NumberValue) {
-                    return Some(token2.token_parsed);
+                if self.process_token(&token2) {
+                    self.captured_tokens.push(token2);
                 }
             }
         }
 
         None
+    }
+
+    fn process_token(&mut self, token: &JsonStreamToken) -> bool {
+        if token.token_type == JsonTokenType::PropertyName && self.parse_mode == JsonGetParseMode::Search {
+            if let JsonPathComponent::PropertyName(name) = &self.current_token {
+                if token.token_parsed.eq(name) {
+                    if let Some(next_token) = self.path.pop_front() {
+                        self.current_token = next_token;
+                    } else {
+                        self.parse_mode = JsonGetParseMode::Capture;
+                    }
+                }
+            }
+
+            false
+        } else if self.parse_mode == JsonGetParseMode::Capture {
+            true
+        } else {
+            false
+        }
     }
 }
 
