@@ -83,11 +83,15 @@ impl JsonStreamLexer {
                         token = JsonStream::Double(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::Whitespace }, object_open_token);
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
+
+                        self.property_name_toggle = true;
                     }
                     ReadMode::None => {
                         self.struct_type_stack.push(StructType::Object);
 
                         token = JsonStream::Single(object_open_token);
+
+                        self.property_name_toggle = true;
                     }
                 }
                 
