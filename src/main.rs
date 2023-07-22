@@ -17,7 +17,7 @@ fn main() -> io::Result<()> {
 }
 
 fn find() {
-    let mut json_getter = JsonGet::new("batters");
+    let mut json_getter = JsonGet::new("ppu");
     let mut lines = io::stdin().lock().lines();
 
     let mut json_lexer = JsonStreamLexer::new();
@@ -33,7 +33,7 @@ fn find() {
                     let output = json_getter.parse(json_lexer.analyse(c));
 
                     if let Some(value) = output {
-                        println!("found value '{}'", value);
+                        println!("1: found value '{}'", value);
                         return;
                     }
                 }
@@ -44,7 +44,7 @@ fn find() {
         let output = json_getter.parse(json_lexer.analyse('\n'));
 
         if let Some(value) = output {
-            println!("found value '{}'", value);
+            println!("2: found value '{}'", value);
             return;
         }
     }
@@ -105,6 +105,7 @@ fn analyse() {
 enum JsonGetParseMode {
     Search,
     Capture,
+    Finish,
 }
 
 enum JsonPathComponent {
@@ -117,13 +118,14 @@ struct JsonGet {
     current_token: JsonPathComponent,
     parse_mode: JsonGetParseMode,
     captured_tokens: Vec<JsonStreamToken>,
+    current_search_depth: usize,
 }
 
 impl JsonGet {
     fn new(path: &str) -> JsonGet {
         let mut path = process_path(path);
         if let Some(starting_token) = path.pop_front() {
-            JsonGet { path: path, current_token: starting_token, parse_mode: JsonGetParseMode::Search, captured_tokens: Vec::new() }
+            JsonGet { path: path, current_token: starting_token, parse_mode: JsonGetParseMode::Search, captured_tokens: Vec::new(), current_search_depth: 0 }
         } else {
             panic!("path isn't supported")
         }
@@ -135,15 +137,21 @@ impl JsonGet {
             JsonStream::Single(token) => {
                 if self.process_token(&token) {
                     self.captured_tokens.push(token);
+                } else if self.parse_mode == JsonGetParseMode::Finish {
+                    return Some(stringify_tokens(&self.captured_tokens));
                 }
             }
             JsonStream::Double(token1, token2) => {
                 if self.process_token(&token1) {
                     self.captured_tokens.push(token1);
+                } else if self.parse_mode == JsonGetParseMode::Finish {
+                    return Some(stringify_tokens(&self.captured_tokens));
                 }
 
                 if self.process_token(&token2) {
                     self.captured_tokens.push(token2);
+                } else if self.parse_mode == JsonGetParseMode::Finish {
+                    return Some(stringify_tokens(&self.captured_tokens));
                 }
             }
         }
@@ -152,24 +160,60 @@ impl JsonGet {
     }
 
     fn process_token(&mut self, token: &JsonStreamToken) -> bool {
-        if token.token_type == JsonTokenType::PropertyName && self.parse_mode == JsonGetParseMode::Search {
-            if let JsonPathComponent::PropertyName(name) = &self.current_token {
-                if token.token_parsed.eq(name) {
-                    if let Some(next_token) = self.path.pop_front() {
-                        self.current_token = next_token;
-                    } else {
-                        self.parse_mode = JsonGetParseMode::Capture;
+        match self.parse_mode {
+            JsonGetParseMode::Search => {
+                match token.token_type {
+                    JsonTokenType::PropertyName => {
+                        if let JsonPathComponent::PropertyName(name) = &self.current_token {
+                            if token.token_parsed.eq(name) {
+                                if let Some(next_token) = self.path.pop_front() {
+                                    self.current_token = next_token;
+                                } else {
+                                    self.parse_mode = JsonGetParseMode::Capture;
+                                }
+                            }
+                        }
                     }
+                    _ => {}
                 }
+                
+                false
             }
+            JsonGetParseMode::Capture => {
+                match token.token_type {
+                    JsonTokenType::ObjectOpen => self.current_search_depth += 1,
+                    JsonTokenType::ObjectClose => self.current_search_depth -= 1,
+                    JsonTokenType::ArrayOpen => self.current_search_depth += 1,
+                    JsonTokenType::ArrayClose => self.current_search_depth -= 1,
+                    JsonTokenType::KeyValueDelimiter => {
+                        if self.current_search_depth == 0 {
+                            return false;
+                        }
+                    }
+                    JsonTokenType::PropertyDelimiter => {
+                        if self.current_search_depth == 0 {
+                            self.parse_mode = JsonGetParseMode::Finish;
+                            return false;
+                        }
+                    }
+                    _ => {}
+                }
 
-            false
-        } else if self.parse_mode == JsonGetParseMode::Capture {
-            true
-        } else {
-            false
+                true
+            }
+            JsonGetParseMode::Finish => false,
         }
     }
+}
+
+fn stringify_tokens(tokens: &Vec<JsonStreamToken>) -> String {
+    let mut result = String::new();
+
+    for token in tokens {
+        result.push_str(token.token_raw.as_str());
+    }
+
+    result
 }
 
 fn process_path(path: &str) -> LinkedList<JsonPathComponent> {
