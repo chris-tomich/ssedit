@@ -101,6 +101,12 @@ fn analyse() {
     println!("{}", raw_input);
 }
 
+#[derive(PartialEq)]
+enum JsonGetParseMode {
+    Search,
+    Capture,
+}
+
 enum JsonPathComponent {
     PropertyName(String),
     ArrayIndex(usize),
@@ -109,14 +115,14 @@ enum JsonPathComponent {
 struct JsonGet {
     path: LinkedList<JsonPathComponent>,
     current_token: JsonPathComponent,
-    return_value: bool,
+    parse_mode: JsonGetParseMode,
 }
 
 impl JsonGet {
     fn new(path: &str) -> JsonGet {
         let mut path = process_path(path);
         if let Some(starting_token) = path.pop_front() {
-            JsonGet { path: path, current_token: starting_token, return_value: false }
+            JsonGet { path: path, current_token: starting_token, parse_mode: JsonGetParseMode::Search }
         } else {
             panic!("path isn't supported")
         }
@@ -126,17 +132,17 @@ impl JsonGet {
         match stream {
             JsonStream::None => {}
             JsonStream::Single(token) => {
-                if token.token_type == JsonTokenType::PropertyName && !self.return_value {
+                if token.token_type == JsonTokenType::PropertyName && self.parse_mode == JsonGetParseMode::Search {
                     if let JsonPathComponent::PropertyName(name) = &self.current_token {
                         if token.token_parsed.eq(name) {
                             if let Some(next_token) = self.path.pop_front() {
                                 self.current_token = next_token;
                             } else {
-                                self.return_value = true;
+                                self.parse_mode = JsonGetParseMode::Capture;
                             }
                         }
                     }
-                } else if self.return_value && (token.token_type == JsonTokenType::StringValue || token.token_type == JsonTokenType::NumberValue) {
+                } else if self.parse_mode == JsonGetParseMode::Capture && (token.token_type == JsonTokenType::StringValue || token.token_type == JsonTokenType::NumberValue) {
                     return Some(token.token_parsed);
                 }
             }
@@ -147,11 +153,11 @@ impl JsonGet {
                             if let Some(next_token) = self.path.pop_front() {
                                 self.current_token = next_token;
                             } else {
-                                self.return_value = true;
+                                self.parse_mode = JsonGetParseMode::Capture;
                             }
                         }
                     }
-                } else if self.return_value && (token1.token_type == JsonTokenType::StringValue || token1.token_type == JsonTokenType::NumberValue) {
+                } else if self.parse_mode == JsonGetParseMode::Capture && (token1.token_type == JsonTokenType::StringValue || token1.token_type == JsonTokenType::NumberValue) {
                     return Some(token1.token_parsed);
                 }
 
@@ -161,11 +167,11 @@ impl JsonGet {
                             if let Some(next_token) = self.path.pop_front() {
                                 self.current_token = next_token;
                             } else {
-                                self.return_value = true;
+                                self.parse_mode = JsonGetParseMode::Capture;
                             }
                         }
                     }
-                } else if self.return_value && (token2.token_type == JsonTokenType::StringValue || token2.token_type == JsonTokenType::NumberValue) {
+                } else if self.parse_mode == JsonGetParseMode::Capture && (token2.token_type == JsonTokenType::StringValue || token2.token_type == JsonTokenType::NumberValue) {
                     return Some(token2.token_parsed);
                 }
             }
