@@ -17,7 +17,7 @@ fn main() -> io::Result<()> {
 }
 
 fn find() {
-    let mut json_getter = JsonGet::new("batters.batter[4]");
+    let mut json_getter = JsonGet::new("batters.batter[2]");
     let mut lines = io::stdin().lock().lines();
 
     let mut json_lexer = JsonStreamLexer::new();
