@@ -17,7 +17,7 @@ fn main() -> io::Result<()> {
 }
 
 fn find() {
-    let mut json_getter = JsonGet::new("ppu");
+    let mut json_getter = JsonGet::new("batters.batter");
     let mut lines = io::stdin().lock().lines();
 
     let mut json_lexer = JsonStreamLexer::new();
@@ -118,7 +118,7 @@ struct JsonGet {
     current_token: JsonPathComponent,
     parse_mode: JsonGetParseMode,
     captured_tokens: Vec<JsonStreamToken>,
-    current_search_depth: usize,
+    current_search_depth: isize,
 }
 
 impl JsonGet {
@@ -182,9 +182,21 @@ impl JsonGet {
             JsonGetParseMode::Capture => {
                 match token.token_type {
                     JsonTokenType::ObjectOpen => self.current_search_depth += 1,
-                    JsonTokenType::ObjectClose => self.current_search_depth -= 1,
+                    JsonTokenType::ObjectClose => {
+                        self.current_search_depth -= 1;
+
+                        if self.current_search_depth == 0 {
+                            self.parse_mode = JsonGetParseMode::Finish;
+                        }
+                    }
                     JsonTokenType::ArrayOpen => self.current_search_depth += 1,
-                    JsonTokenType::ArrayClose => self.current_search_depth -= 1,
+                    JsonTokenType::ArrayClose => {
+                        self.current_search_depth -= 1;
+
+                        if self.current_search_depth == 0 {
+                            self.parse_mode = JsonGetParseMode::Finish;
+                        }
+                    }
                     JsonTokenType::KeyValueDelimiter => {
                         if self.current_search_depth == 0 {
                             return false;
