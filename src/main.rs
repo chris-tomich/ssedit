@@ -1,6 +1,6 @@
 mod json;
 
-use std::{io::{self, BufRead}, collections::LinkedList};
+use std::{io::{self, BufRead}, collections::LinkedList, env};
 use json::lexer::{JsonStreamToken, JsonStreamLexer, JsonStream, JsonTokenType};
 
 fn main() -> io::Result<()> {
@@ -17,7 +17,15 @@ fn main() -> io::Result<()> {
 }
 
 fn find() {
-    let mut json_getter = JsonGet::new("batters.batter[2]");
+    let args: Vec<_> = env::args().collect();
+    
+    let search_path = if args.len() >= 2 {
+        args[1].as_str()
+    } else {
+        "batters.batter[2]"
+    };
+
+    let mut json_getter = JsonGet::new(search_path);
     let mut lines = io::stdin().lock().lines();
 
     let mut json_lexer = JsonStreamLexer::new();
@@ -212,6 +220,9 @@ impl JsonGet {
 
                         if self.current_capture_depth == 0 {
                             self.parse_mode = JsonGetParseMode::Finish;
+                        } else if self.current_capture_depth == -1 {
+                            self.parse_mode = JsonGetParseMode::Finish;
+                            return false
                         }
                     }
                     JsonTokenType::ArrayOpen => self.current_capture_depth += 1,
