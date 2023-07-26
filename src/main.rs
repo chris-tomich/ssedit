@@ -2,6 +2,7 @@ mod json;
 
 use std::{io::{self, BufRead}, collections::LinkedList, env};
 use json::lexer::{JsonStreamToken, JsonStreamLexer, JsonStream, JsonTokenType};
+use strum_macros::Display;
 
 fn main() -> io::Result<()> {
     let read = false;
@@ -116,6 +117,7 @@ enum JsonGetParseMode {
     Finish,
 }
 
+#[derive(Display)]
 enum JsonPathComponent {
     PropertyName(String),
     ArrayIndex(isize),
@@ -135,7 +137,7 @@ impl JsonGet {
     fn new(path: &str) -> JsonGet {
         let mut path = process_path(path);
         if let Some(starting_token) = path.pop_front() {
-            JsonGet { path: path, current_token: starting_token, parse_mode: JsonGetParseMode::Search, captured_tokens: Vec::new(), current_search_depth: 0, current_capture_depth: 0, current_index: -1 }
+            JsonGet { path: path, current_token: starting_token, parse_mode: JsonGetParseMode::Search, captured_tokens: Vec::new(), current_search_depth: -1, current_capture_depth: 0, current_index: -1 }
         } else {
             panic!("path isn't supported")
         }
@@ -192,8 +194,17 @@ impl JsonGet {
                             JsonTokenType::ObjectOpen => self.current_search_depth += 1,
                             JsonTokenType::ObjectClose => self.current_search_depth -= 1,
                             JsonTokenType::ArrayOpen => {
-                                self.current_index = 0;
-                                self.current_search_depth = 0;
+                                if self.current_search_depth == -1 {
+                                    self.current_index = 0;
+                                    self.current_search_depth = 0;
+                                } else {
+                                    self.current_search_depth += 1;
+                                }
+                            }
+                            JsonTokenType::ArrayClose => {
+                                if self.current_search_depth == 0 {
+                                    panic!("index not found");
+                                }
                             }
                             JsonTokenType::PropertyDelimiter => {
                                 if self.current_search_depth == 0 {
@@ -204,8 +215,14 @@ impl JsonGet {
                         }
 
                         if self.current_index == *index && self.current_search_depth == 0 {
-                            self.parse_mode = JsonGetParseMode::Capture;
                             self.current_index = -1;
+                            self.current_search_depth = -1;
+
+                            if let Some(next_token) = self.path.pop_front() {
+                                self.current_token = next_token;
+                            } else {
+                                self.parse_mode = JsonGetParseMode::Capture;
+                            }
                         }
                     }
                 }
@@ -231,6 +248,9 @@ impl JsonGet {
 
                         if self.current_capture_depth == 0 {
                             self.parse_mode = JsonGetParseMode::Finish;
+                        } else if self.current_capture_depth == -1 {
+                            self.parse_mode = JsonGetParseMode::Finish;
+                            return false
                         }
                     }
                     JsonTokenType::KeyValueDelimiter => {
@@ -273,8 +293,10 @@ fn process_path(path: &str) -> LinkedList<JsonPathComponent> {
     for c in path.chars() {
         match c {
             '.' => {
-                parsed_path.push_back(JsonPathComponent::PropertyName(token_builder.clone()));
-                token_builder.clear();
+                if token_builder.len() > 0 {
+                    parsed_path.push_back(JsonPathComponent::PropertyName(token_builder.clone()));
+                    token_builder.clear();
+                }
             }
             '[' => {
                 parsed_path.push_back(JsonPathComponent::PropertyName(token_builder.clone()));
@@ -289,6 +311,7 @@ fn process_path(path: &str) -> LinkedList<JsonPathComponent> {
 
                 if let Ok(array_index) = token_builder.as_str().parse::<isize>() {
                     parsed_path.push_back(JsonPathComponent::ArrayIndex(array_index));
+                    token_builder.clear();
                 } else {
                     panic!("array index couldn't be parsed to a number");
                 }
@@ -296,8 +319,10 @@ fn process_path(path: &str) -> LinkedList<JsonPathComponent> {
             _ => token_builder.push(c),
         }
     }
-
-    parsed_path.push_back(JsonPathComponent::PropertyName(token_builder.clone()));
+    
+    if token_builder.len() > 0 {
+        parsed_path.push_back(JsonPathComponent::PropertyName(token_builder.clone()));
+    }
 
     parsed_path
 }
