@@ -33,7 +33,9 @@ fn find() {
 
     let mut eof = false;
 
-    print!("'");
+    let mut capture_mode = false;
+
+    print!("");
 
     while !eof {
         match lines.next() {
@@ -43,11 +45,34 @@ fn find() {
                 for c in line.chars() {
                     match json_getter.parse(json_lexer.analyse(c)) {
                         JsonStream::None => {}
-                        JsonStream::Single(token) => print!("{}", token.token_raw),
-                        JsonStream::Double(token1, token2) => print!("{}{}", token1.token_raw, token2.token_raw),
-                        JsonStream::Finish => {}
+                        JsonStream::Single(token) => {
+                            if !capture_mode {
+                                capture_mode = true;
+                                print!("|");
+                            }
+                            print!("{}", token.token_raw);
+                        }
+                        JsonStream::Double(token1, token2) => {
+                            if !capture_mode {
+                                capture_mode = true;
+                                print!("|");
+                            }
+                            print!("{}{}", token1.token_raw, token2.token_raw);
+                        }
+                        JsonStream::Finish => {
+                            if capture_mode {
+                                print!("|");
+                                capture_mode = false;
+                            }
+                        }
+                    }
+
+                    if !capture_mode {
+                        print!("{}", c);
                     }
                 }
+
+                print!("\n");
             },
             None => break,
         }
@@ -59,8 +84,6 @@ fn find() {
             JsonStream::Finish => {}
         }
     }
-
-    print!("'\n");
 }
 
 fn analyse() {
