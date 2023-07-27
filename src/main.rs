@@ -33,30 +33,34 @@ fn find() {
 
     let mut eof = false;
 
+    print!("'");
+
     while !eof {
         match lines.next() {
             Some(result) => {
                 let line = result.unwrap_or_else(|_|{eof = true; String::new()});
 
                 for c in line.chars() {
-                    let output = json_getter.parse(json_lexer.analyse(c));
-
-                    if let Some(value) = output {
-                        println!("1: found value '{}'", value);
-                        return;
+                    match json_getter.parse(json_lexer.analyse(c)) {
+                        JsonStream::None => {}
+                        JsonStream::Single(token) => print!("{}", token.token_raw),
+                        JsonStream::Double(token1, token2) => print!("{}{}", token1.token_raw, token2.token_raw),
+                        JsonStream::Finish => {}
                     }
                 }
             },
             None => break,
         }
 
-        let output = json_getter.parse(json_lexer.analyse('\n'));
-
-        if let Some(value) = output {
-            println!("2: found value '{}'", value);
-            return;
+        match json_getter.parse(json_lexer.analyse('\n')) {
+            JsonStream::None => {}
+            JsonStream::Single(token) => print!("{}", token.token_raw),
+            JsonStream::Double(token1, token2) => print!("{}{}", token1.token_raw, token2.token_raw),
+            JsonStream::Finish => {}
         }
     }
+
+    print!("'\n");
 }
 
 fn analyse() {
@@ -80,6 +84,7 @@ fn analyse() {
                             tokens.push(token1);
                             tokens.push(token2);
                         }
+                        JsonStream::Finish => {}
                     }
                 }
             },
@@ -93,6 +98,7 @@ fn analyse() {
                 tokens.push(token1);
                 tokens.push(token2);
             }
+            JsonStream::Finish => {}
         }
     }
 
@@ -127,7 +133,6 @@ struct JsonGet {
     path: LinkedList<JsonPathComponent>,
     current_token: JsonPathComponent,
     parse_mode: JsonGetParseMode,
-    captured_tokens: Vec<JsonStreamToken>,
     current_search_depth: isize,
     current_capture_depth: isize,
     current_index: isize,
@@ -137,38 +142,53 @@ impl JsonGet {
     fn new(path: &str) -> JsonGet {
         let mut path = process_path(path);
         if let Some(starting_token) = path.pop_front() {
-            JsonGet { path: path, current_token: starting_token, parse_mode: JsonGetParseMode::Search, captured_tokens: Vec::new(), current_search_depth: -1, current_capture_depth: 0, current_index: -1 }
+            JsonGet { path: path, current_token: starting_token, parse_mode: JsonGetParseMode::Search, current_search_depth: -1, current_capture_depth: 0, current_index: -1 }
         } else {
             panic!("path isn't supported")
         }
     }
 
-    fn parse(&mut self, stream: JsonStream) -> Option<String> {
+    fn parse(&mut self, stream: JsonStream) -> JsonStream {
         match stream {
             JsonStream::None => {}
             JsonStream::Single(token) => {
                 if self.process_token(&token) {
-                    self.captured_tokens.push(token);
+                    return JsonStream::Single(token);
                 } else if self.parse_mode == JsonGetParseMode::Finish {
-                    return Some(stringify_tokens(&self.captured_tokens));
+                    return JsonStream::Finish;
                 }
             }
             JsonStream::Double(token1, token2) => {
+                let mut token1_processed = false;
+
                 if self.process_token(&token1) {
-                    self.captured_tokens.push(token1);
+                    token1_processed = true;
                 } else if self.parse_mode == JsonGetParseMode::Finish {
-                    return Some(stringify_tokens(&self.captured_tokens));
+                    return JsonStream::Finish;
                 }
 
                 if self.process_token(&token2) {
-                    self.captured_tokens.push(token2);
+                    if token1_processed {
+                        return JsonStream::Double(token1, token2);
+                    } else {
+                        return JsonStream::Single(token2);
+                    }
                 } else if self.parse_mode == JsonGetParseMode::Finish {
-                    return Some(stringify_tokens(&self.captured_tokens));
+                    if token1_processed {
+                        return JsonStream::Single(token1);
+                    }
+
+                    return JsonStream::Finish;
+                }
+
+                if token1_processed {
+                    return JsonStream::Single(token1);
                 }
             }
+            JsonStream::Finish => return stream,
         }
 
-        None
+        JsonStream::None
     }
 
     fn process_token(&mut self, token: &JsonStreamToken) -> bool {
@@ -272,16 +292,6 @@ impl JsonGet {
             JsonGetParseMode::Finish => false,
         }
     }
-}
-
-fn stringify_tokens(tokens: &Vec<JsonStreamToken>) -> String {
-    let mut result = String::new();
-
-    for token in tokens {
-        result.push_str(token.token_raw.as_str());
-    }
-
-    result
 }
 
 fn process_path(path: &str) -> LinkedList<JsonPathComponent> {

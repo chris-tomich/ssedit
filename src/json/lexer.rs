@@ -40,6 +40,7 @@ pub enum JsonStream {
     None,
     Single(JsonStreamToken),
     Double(JsonStreamToken, JsonStreamToken),
+    Finish
 }
 
 pub struct JsonStreamLexer {
