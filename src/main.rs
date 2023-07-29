@@ -23,10 +23,11 @@ fn find() {
     let search_path = if args.len() >= 2 {
         args[1].as_str()
     } else {
-        "batters.batter[2]"
+        eprintln!("no commands provided");
+        return
     };
 
-    let mut json_getter = JsonGet::new(search_path);
+    let mut json_getter = JsonSelect::new(search_path);
 
     let mut json_lexer = JsonStreamLexer::new();
 
@@ -55,7 +56,6 @@ fn find() {
                     JsonStream::Finish => {
                         let mut starting = true;
                         if capture_mode {
-                            print!("S|");
                             for token in &captured_tokens {
                                 if token.token_type != JsonTokenType::Whitespace {
                                     // We need this check because whitespace is already included in the uncapture stream.
@@ -68,7 +68,6 @@ fn find() {
                                     print!("{}", token.token_raw);
                                 }
                             }
-                            print!("|E");
                         }
 
                         capture_mode = false;
@@ -85,8 +84,6 @@ fn find() {
             }
         }
     }
-
-    print!("\n");
 }
 
 fn analyse() {
@@ -155,7 +152,7 @@ enum JsonPathComponent {
     ArrayIndex(isize),
 }
 
-struct JsonGet {
+struct JsonSelect {
     path: LinkedList<JsonPathComponent>,
     current_token: JsonPathComponent,
     parse_mode: JsonGetParseMode,
@@ -164,11 +161,11 @@ struct JsonGet {
     current_index: isize,
 }
 
-impl JsonGet {
-    fn new(path: &str) -> JsonGet {
+impl JsonSelect {
+    fn new(path: &str) -> JsonSelect {
         let mut path = process_path(path);
         if let Some(starting_token) = path.pop_front() {
-            JsonGet { path: path, current_token: starting_token, parse_mode: JsonGetParseMode::Search, current_search_depth: -1, current_capture_depth: 0, current_index: -1 }
+            JsonSelect { path: path, current_token: starting_token, parse_mode: JsonGetParseMode::Search, current_search_depth: -1, current_capture_depth: 0, current_index: -1 }
         } else {
             panic!("path isn't supported")
         }
