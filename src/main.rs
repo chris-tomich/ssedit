@@ -58,6 +58,9 @@ fn find() {
                             print!("S|");
                             for token in &captured_tokens {
                                 if token.token_type != JsonTokenType::Whitespace {
+                                    // We need this check because whitespace is already included in the uncapture stream.
+                                    // This is hard to resolve because whitespace usually only ends once a new token has
+                                    // begun meaning you don't know it's unnecessary till it's already been passed as a token.
                                     starting = false;
                                 }
 
