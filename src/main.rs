@@ -1,6 +1,6 @@
 mod json;
 
-use std::{io::{self, BufRead}, collections::LinkedList, env};
+use std::{io::{self, Read, BufRead}, collections::LinkedList, env};
 use json::lexer::{JsonStreamToken, JsonStreamLexer, JsonStream, JsonTokenType};
 use strum_macros::Display;
 
@@ -27,63 +27,63 @@ fn find() {
     };
 
     let mut json_getter = JsonGet::new(search_path);
-    let mut lines = io::stdin().lock().lines();
 
     let mut json_lexer = JsonStreamLexer::new();
 
-    let mut eof = false;
-
     let mut capture_mode = false;
+    let mut captured_tokens = LinkedList::new();
 
-    print!("");
+    let mut buffer = [0; 1];
 
-    while !eof {
-        match lines.next() {
-            Some(result) => {
-                let line = result.unwrap_or_else(|_|{eof = true; String::new()});
+    loop {
+        match io::stdin().lock().read(&mut buffer) {
+            Ok(0) => break,
+            Ok(_) => {
+                let c = buffer[0] as char;
 
-                for c in line.chars() {
-                    match json_getter.parse(json_lexer.analyse(c)) {
-                        JsonStream::None => {}
-                        JsonStream::Single(token) => {
-                            if !capture_mode {
-                                capture_mode = true;
-                                print!("|");
-                            }
-                            print!("{}", token.token_raw);
-                        }
-                        JsonStream::Double(token1, token2) => {
-                            if !capture_mode {
-                                capture_mode = true;
-                                print!("|");
-                            }
-                            print!("{}{}", token1.token_raw, token2.token_raw);
-                        }
-                        JsonStream::Finish => {
-                            if capture_mode {
-                                print!("|");
-                                capture_mode = false;
-                            }
-                        }
+                match json_getter.parse(json_lexer.analyse(c)) {
+                    JsonStream::None => {}
+                    JsonStream::Single(token) => {
+                        capture_mode = true;
+                        captured_tokens.push_back(token);
                     }
+                    JsonStream::Double(token1, token2) => {
+                        capture_mode = true;
+                        captured_tokens.push_back(token1);
+                        captured_tokens.push_back(token2);
+                    }
+                    JsonStream::Finish => {
+                        let mut starting = true;
+                        if capture_mode {
+                            print!("S|");
+                            for token in &captured_tokens {
+                                if token.token_type != JsonTokenType::Whitespace {
+                                    starting = false;
+                                }
 
-                    if !capture_mode {
-                        print!("{}", c);
+                                if !starting {
+                                    print!("{}", token.token_raw);
+                                }
+                            }
+                            print!("|E");
+                        }
+
+                        capture_mode = false;
                     }
                 }
 
-                print!("\n");
-            },
-            None => break,
-        }
-
-        match json_getter.parse(json_lexer.analyse('\n')) {
-            JsonStream::None => {}
-            JsonStream::Single(token) => print!("{}", token.token_raw),
-            JsonStream::Double(token1, token2) => print!("{}{}", token1.token_raw, token2.token_raw),
-            JsonStream::Finish => {}
+                if !capture_mode {
+                    print!("{}", c);
+                }
+            }
+            Err(err) => {
+                eprintln!("error reading from stdin: {}", err);
+                break;
+            }
         }
     }
+
+    print!("\n");
 }
 
 fn analyse() {
