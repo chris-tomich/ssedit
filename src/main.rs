@@ -1,8 +1,16 @@
 mod json;
 
-use std::{io::{self, Read, BufRead}, collections::LinkedList, env};
+use std::{io::{self, Read, BufRead}, collections::LinkedList};
+use clap::Parser;
 use json::lexer::{JsonStreamToken, JsonStreamLexer, JsonStream, JsonTokenType};
 use strum_macros::Display;
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct ConfeditArgs {
+    #[arg(short, long)]
+    select: String
+}
 
 fn main() -> io::Result<()> {
     let read = false;
@@ -18,13 +26,13 @@ fn main() -> io::Result<()> {
 }
 
 fn find() {
-    let args: Vec<_> = env::args().collect();
+    let args = ConfeditArgs::parse();
     
-    let search_path = if args.len() >= 2 {
-        args[1].as_str()
-    } else {
-        eprintln!("no commands provided");
+    let search_path = if args.select.is_empty() {
+        eprintln!("no select command provided");
         return
+    } else {
+        args.select.as_str()
     };
 
     let mut json_getter = JsonSelect::new(search_path);
