@@ -9,7 +9,10 @@ use strum_macros::Display;
 #[command(author, version, about, long_about = None)]
 struct ConfeditArgs {
     #[arg(short, long)]
-    select: String
+    select: String,
+
+    #[arg(short, long, default_value = "")]
+    replace: String
 }
 
 fn main() -> io::Result<()> {
@@ -73,7 +76,19 @@ fn find() {
                                 }
 
                                 if !starting {
-                                    print!("{}", token.token_raw);
+                                    if args.replace.is_empty() {
+                                        print!("{}", token.token_raw);
+                                    } else {
+                                        if token.token_type == JsonTokenType::NewLine || token.token_type == JsonTokenType::Whitespace {
+                                            print!("{}", token.token_raw);
+                                        } else if token.token_type == JsonTokenType::StringValue {
+                                            print!("\"{}\"", args.replace);
+                                            break;
+                                        } else {
+                                            print!("{}", args.replace);
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -82,7 +97,7 @@ fn find() {
                     }
                 }
 
-                if !capture_mode {
+                if !capture_mode && !args.replace.is_empty() {
                     print!("{}", c);
                 }
             }
@@ -313,6 +328,12 @@ impl JsonSelect {
                         if self.current_capture_depth == 0 {
                             self.parse_mode = JsonGetParseMode::Finish;
                             return false;
+                        }
+                    }
+                    JsonTokenType::StringValue | JsonTokenType::NumberValue => {
+                        if self.current_capture_depth == 0 {
+                            self.parse_mode = JsonGetParseMode::Finish;
+                            return true;
                         }
                     }
                     _ => {}
