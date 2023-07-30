@@ -77,7 +77,7 @@ fn find() {
 
                                 if !starting {
                                     if args.replace.is_empty() {
-                                        print!("{}", token.token_raw);
+                                        print!("{}", token.token_parsed);
                                     } else {
                                         if token.token_type == JsonTokenType::NewLine || token.token_type == JsonTokenType::Whitespace {
                                             print!("{}", token.token_raw);
