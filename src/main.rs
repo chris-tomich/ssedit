@@ -1,5 +1,6 @@
 mod json;
 
+use core::fmt;
 use std::{io::{self, Read, BufRead}, collections::LinkedList};
 use clap::Parser;
 use json::lexer::{JsonStreamToken, JsonStreamLexer, JsonStream, JsonTokenType};
@@ -17,12 +18,14 @@ struct ConfeditArgs {
 
 fn main() -> io::Result<()> {
     let read = false;
+    let finder = false;
 
     if read {
         analyse();
-    }
-    else {
+    } else if finder {
         find();
+    } else {
+        search();
     }
 
     Ok(())
@@ -160,6 +163,11 @@ fn analyse() {
     }
 
     println!("{}", raw_input);
+}
+
+fn search() {
+    println!("Path '$.' parsed as '{}'", JsonPath::from("$."));
+    println!("Path '$[10]' parsed as '{}'", JsonPath::from("$[10]"));
 }
 
 #[derive(PartialEq)]
@@ -387,4 +395,103 @@ fn process_path(path: &str) -> LinkedList<JsonSelectComponent> {
     }
 
     parsed_path
+}
+
+enum JsonPathOperator {
+    ObjectRoot,
+    ArrayRoot(isize),
+}
+
+enum JsonPathPartialOperator {
+    None,
+    Root,
+    ArrayRoot,
+    ArrayRootIndex(String),
+    MemberAccess,
+    DeepScanMemberAccess,
+}
+
+struct JsonPath {
+    path: String,
+    operations: Vec<JsonPathOperator>,
+    partial_operation: JsonPathPartialOperator,
+}
+
+impl JsonPath {
+    fn from(path: &str) -> JsonPath {
+        let mut json_path = JsonPath { path: String::from(path), operations: Vec::new(), partial_operation: JsonPathPartialOperator::None };
+        json_path.tokenise();
+
+        json_path
+    }
+
+    fn tokenise(&mut self) {
+        for c in self.path.clone().chars() {
+            match c {
+                '$' => {
+                    match self.partial_operation {
+                        JsonPathPartialOperator::None => self.partial_operation = JsonPathPartialOperator::Root,
+                        _ => todo!(),
+                    }
+                }
+                '.' => {
+                    match self.partial_operation {
+                        JsonPathPartialOperator::None => self.partial_operation = JsonPathPartialOperator::MemberAccess,
+                        JsonPathPartialOperator::Root => {
+                            self.operations.push(JsonPathOperator::ObjectRoot);
+                            self.partial_operation = JsonPathPartialOperator::None;
+                        }
+                        JsonPathPartialOperator::MemberAccess => self.partial_operation = JsonPathPartialOperator::DeepScanMemberAccess,
+                        _ => todo!(),
+                    }
+                }
+                '[' => {
+                    match self.partial_operation {
+                        JsonPathPartialOperator::Root => self.partial_operation = JsonPathPartialOperator::ArrayRoot,
+                        _ => todo!(),
+                    }
+                }
+                '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
+                    match &mut self.partial_operation {
+                        JsonPathPartialOperator::ArrayRoot => self.partial_operation = JsonPathPartialOperator::ArrayRootIndex(String::from(c)),
+                        JsonPathPartialOperator::ArrayRootIndex(index) => index.push(c),
+                        _ => todo!(),
+                    }
+                }
+                ']' => {
+                    match &self.partial_operation {
+                        JsonPathPartialOperator::ArrayRootIndex(index) => {
+                            if let Ok(i) = index.as_str().parse::<isize>() {
+                                self.operations.push(JsonPathOperator::ArrayRoot(i));
+                            }
+                            self.partial_operation = JsonPathPartialOperator::None;
+                        }
+                        _ => todo!(),
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+impl fmt::Display for JsonPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for operation in &self.operations {
+            match operation {
+                JsonPathOperator::ObjectRoot => {
+                    if let Err(e) = write!(f, "ObjectRoot") {
+                        return Err(e);
+                    }
+                }
+                JsonPathOperator::ArrayRoot(index) => {
+                    if let Err(e) = write!(f, "ArrayRoot[{}]", index) {
+                        return Err(e);
+                    }
+                }
+            };
+        }
+
+        Ok(())
+    }
 }
