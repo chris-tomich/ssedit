@@ -163,22 +163,22 @@ fn analyse() {
 }
 
 #[derive(PartialEq)]
-enum JsonGetParseMode {
+enum JsonSelectParseMode {
     Search,
     Capture,
     Finish,
 }
 
 #[derive(Display)]
-enum JsonPathComponent {
+enum JsonSelectComponent {
     PropertyName(String),
     ArrayIndex(isize),
 }
 
 struct JsonSelect {
-    path: LinkedList<JsonPathComponent>,
-    current_token: JsonPathComponent,
-    parse_mode: JsonGetParseMode,
+    path: LinkedList<JsonSelectComponent>,
+    current_token: JsonSelectComponent,
+    parse_mode: JsonSelectParseMode,
     current_search_depth: isize,
     current_capture_depth: isize,
     current_index: isize,
@@ -188,7 +188,7 @@ impl JsonSelect {
     fn new(path: &str) -> JsonSelect {
         let mut path = process_path(path);
         if let Some(starting_token) = path.pop_front() {
-            JsonSelect { path: path, current_token: starting_token, parse_mode: JsonGetParseMode::Search, current_search_depth: -1, current_capture_depth: 0, current_index: -1 }
+            JsonSelect { path: path, current_token: starting_token, parse_mode: JsonSelectParseMode::Search, current_search_depth: -1, current_capture_depth: 0, current_index: -1 }
         } else {
             panic!("path isn't supported")
         }
@@ -200,7 +200,7 @@ impl JsonSelect {
             JsonStream::Single(token) => {
                 if self.process_token(&token) {
                     return JsonStream::Single(token);
-                } else if self.parse_mode == JsonGetParseMode::Finish {
+                } else if self.parse_mode == JsonSelectParseMode::Finish {
                     return JsonStream::Finish;
                 }
             }
@@ -209,7 +209,7 @@ impl JsonSelect {
 
                 if self.process_token(&token1) {
                     token1_processed = true;
-                } else if self.parse_mode == JsonGetParseMode::Finish {
+                } else if self.parse_mode == JsonSelectParseMode::Finish {
                     return JsonStream::Finish;
                 }
 
@@ -219,7 +219,7 @@ impl JsonSelect {
                     } else {
                         return JsonStream::Single(token2);
                     }
-                } else if self.parse_mode == JsonGetParseMode::Finish {
+                } else if self.parse_mode == JsonSelectParseMode::Finish {
                     if token1_processed {
                         return JsonStream::Single(token1);
                     }
@@ -239,23 +239,23 @@ impl JsonSelect {
 
     fn process_token(&mut self, token: &JsonStreamToken) -> bool {
         match self.parse_mode {
-            JsonGetParseMode::Search => {
+            JsonSelectParseMode::Search => {
                 match &self.current_token {
-                    JsonPathComponent::PropertyName(name) => {
+                    JsonSelectComponent::PropertyName(name) => {
                         match token.token_type {
                             JsonTokenType::PropertyName => {
                                 if token.token_parsed.eq(name) {
                                     if let Some(next_token) = self.path.pop_front() {
                                         self.current_token = next_token;
                                     } else {
-                                        self.parse_mode = JsonGetParseMode::Capture;
+                                        self.parse_mode = JsonSelectParseMode::Capture;
                                     }
                                 }
                             }
                             _ => {}
                         }
                     }
-                    JsonPathComponent::ArrayIndex(index) => {
+                    JsonSelectComponent::ArrayIndex(index) => {
                         match token.token_type {
                             JsonTokenType::ObjectOpen => self.current_search_depth += 1,
                             JsonTokenType::ObjectClose => self.current_search_depth -= 1,
@@ -287,7 +287,7 @@ impl JsonSelect {
                             if let Some(next_token) = self.path.pop_front() {
                                 self.current_token = next_token;
                             } else {
-                                self.parse_mode = JsonGetParseMode::Capture;
+                                self.parse_mode = JsonSelectParseMode::Capture;
                             }
                         }
                     }
@@ -295,16 +295,16 @@ impl JsonSelect {
                 
                 false
             }
-            JsonGetParseMode::Capture => {
+            JsonSelectParseMode::Capture => {
                 match token.token_type {
                     JsonTokenType::ObjectOpen => self.current_capture_depth += 1,
                     JsonTokenType::ObjectClose => {
                         self.current_capture_depth -= 1;
 
                         if self.current_capture_depth == 0 {
-                            self.parse_mode = JsonGetParseMode::Finish;
+                            self.parse_mode = JsonSelectParseMode::Finish;
                         } else if self.current_capture_depth == -1 {
-                            self.parse_mode = JsonGetParseMode::Finish;
+                            self.parse_mode = JsonSelectParseMode::Finish;
                             return false
                         }
                     }
@@ -313,9 +313,9 @@ impl JsonSelect {
                         self.current_capture_depth -= 1;
 
                         if self.current_capture_depth == 0 {
-                            self.parse_mode = JsonGetParseMode::Finish;
+                            self.parse_mode = JsonSelectParseMode::Finish;
                         } else if self.current_capture_depth == -1 {
-                            self.parse_mode = JsonGetParseMode::Finish;
+                            self.parse_mode = JsonSelectParseMode::Finish;
                             return false
                         }
                     }
@@ -326,13 +326,13 @@ impl JsonSelect {
                     }
                     JsonTokenType::PropertyDelimiter => {
                         if self.current_capture_depth == 0 {
-                            self.parse_mode = JsonGetParseMode::Finish;
+                            self.parse_mode = JsonSelectParseMode::Finish;
                             return false;
                         }
                     }
                     JsonTokenType::StringValue | JsonTokenType::NumberValue => {
                         if self.current_capture_depth == 0 {
-                            self.parse_mode = JsonGetParseMode::Finish;
+                            self.parse_mode = JsonSelectParseMode::Finish;
                             return true;
                         }
                     }
@@ -341,12 +341,12 @@ impl JsonSelect {
 
                 true
             }
-            JsonGetParseMode::Finish => false,
+            JsonSelectParseMode::Finish => false,
         }
     }
 }
 
-fn process_path(path: &str) -> LinkedList<JsonPathComponent> {
+fn process_path(path: &str) -> LinkedList<JsonSelectComponent> {
     let mut parsed_path = LinkedList::new();
     let mut token_builder = String::new();
 
@@ -356,12 +356,12 @@ fn process_path(path: &str) -> LinkedList<JsonPathComponent> {
         match c {
             '.' => {
                 if token_builder.len() > 0 {
-                    parsed_path.push_back(JsonPathComponent::PropertyName(token_builder.clone()));
+                    parsed_path.push_back(JsonSelectComponent::PropertyName(token_builder.clone()));
                     token_builder.clear();
                 }
             }
             '[' => {
-                parsed_path.push_back(JsonPathComponent::PropertyName(token_builder.clone()));
+                parsed_path.push_back(JsonSelectComponent::PropertyName(token_builder.clone()));
                 token_builder.clear();
 
                 parsing_array_index = true;
@@ -372,7 +372,7 @@ fn process_path(path: &str) -> LinkedList<JsonPathComponent> {
                 }
 
                 if let Ok(array_index) = token_builder.as_str().parse::<isize>() {
-                    parsed_path.push_back(JsonPathComponent::ArrayIndex(array_index));
+                    parsed_path.push_back(JsonSelectComponent::ArrayIndex(array_index));
                     token_builder.clear();
                 } else {
                     panic!("array index couldn't be parsed to a number");
@@ -383,7 +383,7 @@ fn process_path(path: &str) -> LinkedList<JsonPathComponent> {
     }
     
     if token_builder.len() > 0 {
-        parsed_path.push_back(JsonPathComponent::PropertyName(token_builder.clone()));
+        parsed_path.push_back(JsonSelectComponent::PropertyName(token_builder.clone()));
     }
 
     parsed_path
