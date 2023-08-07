@@ -168,6 +168,10 @@ fn analyse() {
 fn search() {
     println!("Path '$.' parsed as '{}'", JsonPath::from("$."));
     println!("Path '$[10]' parsed as '{}'", JsonPath::from("$[10]"));
+    println!("Path '$.batters' parsed as '{}'", JsonPath::from("$.batters"));
+    println!("Path '$..batters' parsed as '{}'", JsonPath::from("$..batters"));
+    println!("Path '$.batters.batter' parsed as '{}'", JsonPath::from("$.batters.batter"));
+    //println!("Path '$.batters.batter[2].type' parsed as '{}'", JsonPath::from("$.batters.batter[2].type"));
 }
 
 #[derive(PartialEq)]
@@ -400,6 +404,8 @@ fn process_path(path: &str) -> LinkedList<JsonSelectComponent> {
 enum JsonPathOperator {
     ObjectRoot,
     ArrayRoot(isize),
+    MemberAccess(String),
+    DeepScanMemberAccess(String),
 }
 
 enum JsonPathPartialOperator {
@@ -407,8 +413,9 @@ enum JsonPathPartialOperator {
     Root,
     ArrayRoot,
     ArrayRootIndex(String),
-    MemberAccess,
-    DeepScanMemberAccess,
+    PreMemberAccess,
+    MemberAccess(String),
+    DeepScanMemberAccess(String),
 }
 
 struct JsonPath {
@@ -426,7 +433,10 @@ impl JsonPath {
     }
 
     fn tokenise(&mut self) {
-        for c in self.path.clone().chars() {
+        let mut terminated_path = self.path.clone();
+        terminated_path.push_str("\n");
+
+        for c in terminated_path.chars() {
             match c {
                 '$' => {
                     match self.partial_operation {
@@ -435,13 +445,21 @@ impl JsonPath {
                     }
                 }
                 '.' => {
-                    match self.partial_operation {
-                        JsonPathPartialOperator::None => self.partial_operation = JsonPathPartialOperator::MemberAccess,
+                    match &mut self.partial_operation {
+                        JsonPathPartialOperator::None => self.partial_operation = JsonPathPartialOperator::PreMemberAccess,
                         JsonPathPartialOperator::Root => {
                             self.operations.push(JsonPathOperator::ObjectRoot);
-                            self.partial_operation = JsonPathPartialOperator::None;
+                            self.partial_operation = JsonPathPartialOperator::PreMemberAccess;
                         }
-                        JsonPathPartialOperator::MemberAccess => self.partial_operation = JsonPathPartialOperator::DeepScanMemberAccess,
+                        JsonPathPartialOperator::PreMemberAccess => self.partial_operation = JsonPathPartialOperator::DeepScanMemberAccess(String::new()),
+                        JsonPathPartialOperator::MemberAccess(name) => {
+                            self.operations.push(JsonPathOperator::MemberAccess(std::mem::replace(name, String::new())));
+                            self.partial_operation = JsonPathPartialOperator::PreMemberAccess;
+                        }
+                        JsonPathPartialOperator::DeepScanMemberAccess(name) => {
+                            self.operations.push(JsonPathOperator::DeepScanMemberAccess(std::mem::replace(name, String::new())));
+                            self.partial_operation = JsonPathPartialOperator::PreMemberAccess;
+                        }
                         _ => todo!(),
                     }
                 }
@@ -469,7 +487,32 @@ impl JsonPath {
                         _ => todo!(),
                     }
                 }
-                _ => {}
+                '\n' => {
+                    match &mut self.partial_operation {
+                        JsonPathPartialOperator::None => {}
+                        JsonPathPartialOperator::Root => self.operations.push(JsonPathOperator::ObjectRoot),
+                        JsonPathPartialOperator::ArrayRoot => self.operations.push(JsonPathOperator::ArrayRoot(-1)),
+                        JsonPathPartialOperator::ArrayRootIndex(index) => {
+                            if let Ok(index) = index.as_str().parse::<isize>() {
+                                self.operations.push(JsonPathOperator::ArrayRoot(index));
+                            }
+                        }
+                        JsonPathPartialOperator::PreMemberAccess => self.operations.push(JsonPathOperator::MemberAccess(String::new())),
+                        JsonPathPartialOperator::MemberAccess(name) => self.operations.push(JsonPathOperator::MemberAccess(std::mem::replace(name, String::new()))),
+                        JsonPathPartialOperator::DeepScanMemberAccess(name) => self.operations.push(JsonPathOperator::DeepScanMemberAccess(std::mem::replace(name, String::new()))),
+                    }
+                }
+                _ => {
+                    match &mut self.partial_operation {
+                        JsonPathPartialOperator::PreMemberAccess => self.partial_operation = JsonPathPartialOperator::MemberAccess(String::from(c)),
+                        JsonPathPartialOperator::MemberAccess(name) => name.push(c),
+                        JsonPathPartialOperator::DeepScanMemberAccess(name) => name.push(c),
+                        JsonPathPartialOperator::None => todo!("{}", c),
+                        JsonPathPartialOperator::Root => todo!("{}", c),
+                        JsonPathPartialOperator::ArrayRoot => todo!("{}", c),
+                        JsonPathPartialOperator::ArrayRootIndex(_) => todo!("{}", c),
+                    }
+                }
             }
         }
     }
@@ -477,21 +520,38 @@ impl JsonPath {
 
 impl fmt::Display for JsonPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut output = String::new();
+        let mut is_first = true;
+
         for operation in &self.operations {
+            if !is_first {
+                output.push_str(" -> ")
+            } else {
+                is_first = false;
+            }
+
             match operation {
                 JsonPathOperator::ObjectRoot => {
-                    if let Err(e) = write!(f, "ObjectRoot") {
-                        return Err(e);
-                    }
+                    output.push_str("ObjectRoot");
                 }
                 JsonPathOperator::ArrayRoot(index) => {
-                    if let Err(e) = write!(f, "ArrayRoot[{}]", index) {
-                        return Err(e);
-                    }
+                    output.push_str("ArrayRoot(");
+                    output.push_str(index.to_string().as_str());
+                    output.push_str(")");
+                }
+                JsonPathOperator::MemberAccess(name) => {
+                    output.push_str("MemberAccess(");
+                    output.push_str(name.as_str());
+                    output.push_str(")");
+                }
+                JsonPathOperator::DeepScanMemberAccess(name) => {
+                    output.push_str("DeepScanMemberAccess(");
+                    output.push_str(name.as_str());
+                    output.push_str(")");
                 }
             };
         }
 
-        Ok(())
+        write!(f, "{}", output)
     }
 }
