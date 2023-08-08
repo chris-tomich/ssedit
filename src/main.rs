@@ -180,6 +180,7 @@ fn search() {
     println!("Path '$['batters'].batter[252]' parsed as '{}'", JsonPath::from("$['batters'].batter[252]"));
     println!("Path '$['\\'batters\\''].batter[252]' parsed as '{}'", JsonPath::from("$['\\'batters\\''].batter[252]"));
     println!("Path '$[\"'batters'\"].batter[252]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252]"));
+    println!("Path '$[\"'batters'\"].batter[252][1:10]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252][1:10]"));
     //println!("Path '$.batters.batter[2].type' parsed as '{}'", JsonPath::from("$.batters.batter[2].type"));
 }
 
@@ -506,6 +507,7 @@ impl JsonPath {
                         JsonPathPartialOperator::OpenBracket => self.partial_operation = JsonPathPartialOperator::ArrayIndex(String::from(c)),
                         JsonPathPartialOperator::ArrayRootIndex(index) => index.push(c),
                         JsonPathPartialOperator::ArrayIndex(index) => index.push(c),
+                        JsonPathPartialOperator::ArraySlice(index) => index.push(c),
                         _ => todo!(),
                     }
                 }
@@ -523,7 +525,31 @@ impl JsonPath {
                             }
                             self.partial_operation = JsonPathPartialOperator::None;
                         }
-                        JsonPathPartialOperator::ArraySlice(_) => todo!(),
+                        JsonPathPartialOperator::ArraySlice(index) => {
+                            let mut indexes = index.split(':');
+                            let first = indexes.next();
+                            let second = indexes.next();
+
+                            if let Some(start) = first {
+                                if let Some(end) = second {
+                                    if let Ok(start) = start.parse::<isize>() {
+                                        if let Ok(end) = end.parse::<isize>() {
+                                            self.operations.push(JsonPathOperator::ArraySlice(start, end));
+                                        } else {
+                                            panic!("open ended slices not supported yet");
+                                        }
+                                    } else {
+                                        panic!("open ended slices not supported yet");
+                                    }
+                                } else {
+                                    panic!("open ended slices not supported yet");
+                                }
+                            } else {
+                                panic!("open ended slices not supported yet");
+                            }
+
+                            self.partial_operation = JsonPathPartialOperator::None;
+                        }
                         JsonPathPartialOperator::FilterExpression(_) => todo!(),
                         JsonPathPartialOperator::EscapeCharater(string_type, name) => {
                             name.push(c);
@@ -602,6 +628,29 @@ impl JsonPath {
                         JsonPathPartialOperator::OpenSingleQuotes(name) => self.partial_operation = JsonPathPartialOperator::EscapeCharater(JsonPathStringType::SingleQuotes, std::mem::take(name)),
                         JsonPathPartialOperator::OpenDoubleQuotes(name) => self.partial_operation = JsonPathPartialOperator::EscapeCharater(JsonPathStringType::DoubleQuotes, std::mem::take(name)),
                         _ => todo!()
+                    }
+                }
+                ':' => {
+                    match &mut self.partial_operation {
+                        JsonPathPartialOperator::PreMemberAccess => self.partial_operation = JsonPathPartialOperator::MemberAccess(String::from(c)),
+                        JsonPathPartialOperator::MemberAccess(name) => name.push(c),
+                        JsonPathPartialOperator::DeepScanMemberAccess(name) => name.push(c),
+                        JsonPathPartialOperator::None => todo!("{}", c),
+                        JsonPathPartialOperator::Root => todo!("{}", c),
+                        JsonPathPartialOperator::OpenRootBracket => todo!("{}", c),
+                        JsonPathPartialOperator::ArrayRootIndex(_) => todo!("{}", c),
+                        JsonPathPartialOperator::OpenBracket => self.partial_operation = JsonPathPartialOperator::ArraySlice(String::from(c)),
+                        JsonPathPartialOperator::ArrayIndex(index) => {
+                            index.push(c);
+                            self.partial_operation = JsonPathPartialOperator::ArraySlice(std::mem::take(index));
+                        }
+                        JsonPathPartialOperator::ArraySlice(_) => todo!("{}", c),
+                        JsonPathPartialOperator::FilterExpression(_) => todo!("{}", c),
+                        JsonPathPartialOperator::EscapeCharater(_, _) => todo!("{}", c),
+                        JsonPathPartialOperator::OpenSingleQuotes(name) => name.push(c),
+                        JsonPathPartialOperator::OpenDoubleQuotes(name) => name.push(c),
+                        JsonPathPartialOperator::ClosedSingleQuotes(_) => todo!("{}", c),
+                        JsonPathPartialOperator::ClosedDoubleQuotes(_) => todo!("{}", c),
                     }
                 }
                 '\n' => {
