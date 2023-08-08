@@ -1,5 +1,5 @@
 [package]
-name = "confedit"
+name = "ssedit"
 version = "0.1.0"
 edition = "2021"
 

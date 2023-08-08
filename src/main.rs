@@ -8,7 +8,7 @@ use strum_macros::Display;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct ConfeditArgs {
+struct SSEditArgs {
     #[arg(short, long)]
     select: String,
 
@@ -32,7 +32,7 @@ fn main() -> io::Result<()> {
 }
 
 fn find() {
-    let args = ConfeditArgs::parse();
+    let args = SSEditArgs::parse();
     
     let search_path = if args.select.is_empty() {
         eprintln!("no select command provided");
