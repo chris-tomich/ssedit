@@ -168,9 +168,18 @@ fn analyse() {
 fn search() {
     println!("Path '$.' parsed as '{}'", JsonPath::from("$."));
     println!("Path '$[10]' parsed as '{}'", JsonPath::from("$[10]"));
+    println!("Path '$[10].batters[531]' parsed as '{}'", JsonPath::from("$[10].batters[531]"));
+    println!("Path '$[10][531]['batters']' parsed as '{}'", JsonPath::from("$[10][531]['batters']"));
     println!("Path '$.batters' parsed as '{}'", JsonPath::from("$.batters"));
     println!("Path '$..batters' parsed as '{}'", JsonPath::from("$..batters"));
     println!("Path '$.batters.batter' parsed as '{}'", JsonPath::from("$.batters.batter"));
+    println!("Path '$.batters[252]' parsed as '{}'", JsonPath::from("$.batters[252]"));
+    println!("Path '$.batters['batter']' parsed as '{}'", JsonPath::from("$.batters['batter']"));
+    println!("Path '$.batters['batter'][252]' parsed as '{}'", JsonPath::from("$.batters['batter'][252]"));
+    println!("Path '$['batters']['batter'][252]' parsed as '{}'", JsonPath::from("$['batters']['batter'][252]"));
+    println!("Path '$['batters'].batter[252]' parsed as '{}'", JsonPath::from("$['batters'].batter[252]"));
+    println!("Path '$['\\'batters\\''].batter[252]' parsed as '{}'", JsonPath::from("$['\\'batters\\''].batter[252]"));
+    println!("Path '$[\"'batters'\"].batter[252]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252]"));
     //println!("Path '$.batters.batter[2].type' parsed as '{}'", JsonPath::from("$.batters.batter[2].type"));
 }
 
@@ -406,16 +415,34 @@ enum JsonPathOperator {
     ArrayRoot(isize),
     MemberAccess(String),
     DeepScanMemberAccess(String),
+    ArrayIndex(isize),
+    ArraySlice(isize, isize),
+    FilterExpression(String),
+}
+
+#[derive(Eq, PartialEq)]
+enum JsonPathStringType {
+    SingleQuotes,
+    DoubleQuotes,
 }
 
 enum JsonPathPartialOperator {
     None,
     Root,
-    ArrayRoot,
+    OpenRootBracket,
     ArrayRootIndex(String),
     PreMemberAccess,
     MemberAccess(String),
     DeepScanMemberAccess(String),
+    OpenBracket,
+    ArrayIndex(String),
+    ArraySlice(String),
+    FilterExpression(String),
+    EscapeCharater(JsonPathStringType,String),
+    OpenSingleQuotes(String),
+    OpenDoubleQuotes(String),
+    ClosedSingleQuotes(String),
+    ClosedDoubleQuotes(String),
 }
 
 struct JsonPath {
@@ -453,53 +480,156 @@ impl JsonPath {
                         }
                         JsonPathPartialOperator::PreMemberAccess => self.partial_operation = JsonPathPartialOperator::DeepScanMemberAccess(String::new()),
                         JsonPathPartialOperator::MemberAccess(name) => {
-                            self.operations.push(JsonPathOperator::MemberAccess(std::mem::replace(name, String::new())));
+                            self.operations.push(JsonPathOperator::MemberAccess(std::mem::take(name)));
                             self.partial_operation = JsonPathPartialOperator::PreMemberAccess;
                         }
                         JsonPathPartialOperator::DeepScanMemberAccess(name) => {
-                            self.operations.push(JsonPathOperator::DeepScanMemberAccess(std::mem::replace(name, String::new())));
+                            self.operations.push(JsonPathOperator::DeepScanMemberAccess(std::mem::take(name)));
                             self.partial_operation = JsonPathPartialOperator::PreMemberAccess;
                         }
                         _ => todo!(),
                     }
                 }
                 '[' => {
-                    match self.partial_operation {
-                        JsonPathPartialOperator::Root => self.partial_operation = JsonPathPartialOperator::ArrayRoot,
-                        _ => todo!(),
+                    match &mut self.partial_operation {
+                        JsonPathPartialOperator::Root => self.partial_operation = JsonPathPartialOperator::OpenRootBracket,
+                        JsonPathPartialOperator::MemberAccess(name) => {
+                            self.operations.push(JsonPathOperator::MemberAccess(std::mem::take(name)));
+                            self.partial_operation = JsonPathPartialOperator::OpenBracket;
+                        }
+                        _ => self.partial_operation = JsonPathPartialOperator::OpenBracket,
                     }
                 }
                 '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
                     match &mut self.partial_operation {
-                        JsonPathPartialOperator::ArrayRoot => self.partial_operation = JsonPathPartialOperator::ArrayRootIndex(String::from(c)),
+                        JsonPathPartialOperator::OpenRootBracket => self.partial_operation = JsonPathPartialOperator::ArrayRootIndex(String::from(c)),
+                        JsonPathPartialOperator::OpenBracket => self.partial_operation = JsonPathPartialOperator::ArrayIndex(String::from(c)),
                         JsonPathPartialOperator::ArrayRootIndex(index) => index.push(c),
+                        JsonPathPartialOperator::ArrayIndex(index) => index.push(c),
                         _ => todo!(),
                     }
                 }
                 ']' => {
-                    match &self.partial_operation {
+                    match &mut self.partial_operation {
                         JsonPathPartialOperator::ArrayRootIndex(index) => {
                             if let Ok(i) = index.as_str().parse::<isize>() {
                                 self.operations.push(JsonPathOperator::ArrayRoot(i));
                             }
                             self.partial_operation = JsonPathPartialOperator::None;
                         }
-                        _ => todo!(),
+                        JsonPathPartialOperator::ArrayIndex(index) => {
+                            if let Ok(i) = index.as_str().parse::<isize>() {
+                                self.operations.push(JsonPathOperator::ArrayIndex(i));
+                            }
+                            self.partial_operation = JsonPathPartialOperator::None;
+                        }
+                        JsonPathPartialOperator::ArraySlice(_) => todo!(),
+                        JsonPathPartialOperator::FilterExpression(_) => todo!(),
+                        JsonPathPartialOperator::EscapeCharater(string_type, name) => {
+                            name.push(c);
+                            if *string_type == JsonPathStringType::SingleQuotes {
+                                self.partial_operation = JsonPathPartialOperator::OpenSingleQuotes(std::mem::take(name));
+                            } else if *string_type == JsonPathStringType::DoubleQuotes {
+                                self.partial_operation = JsonPathPartialOperator::OpenDoubleQuotes(std::mem::take(name));
+                            } else {
+                                panic!("unexpected character '{}'", c);
+                            }
+                        }
+                        JsonPathPartialOperator::OpenSingleQuotes(name) => name.push(c),
+                        JsonPathPartialOperator::OpenDoubleQuotes(name) => name.push(c),
+                        JsonPathPartialOperator::ClosedSingleQuotes(name) => {
+                            self.operations.push(JsonPathOperator::MemberAccess(std::mem::take(name)));
+                            self.partial_operation = JsonPathPartialOperator::None;
+                        }
+                        JsonPathPartialOperator::ClosedDoubleQuotes(name) => {
+                            self.operations.push(JsonPathOperator::MemberAccess(std::mem::take(name)));
+                            self.partial_operation = JsonPathPartialOperator::None;
+                        }
+                        _ => {}
+                    }
+                }
+                '\'' => {
+                    match &mut self.partial_operation {
+                        JsonPathPartialOperator::OpenRootBracket => {
+                            self.operations.push(JsonPathOperator::ObjectRoot);
+                            self.partial_operation = JsonPathPartialOperator::OpenSingleQuotes(String::new());
+                        }
+                        JsonPathPartialOperator::OpenBracket => {
+                            self.partial_operation = JsonPathPartialOperator::OpenSingleQuotes(String::new());
+                        }
+                        JsonPathPartialOperator::FilterExpression(_) => todo!(),
+                        JsonPathPartialOperator::EscapeCharater(string_type, name) => {
+                            name.push(c);
+                            if *string_type == JsonPathStringType::SingleQuotes {
+                                self.partial_operation = JsonPathPartialOperator::OpenSingleQuotes(std::mem::take(name));
+                            } else if *string_type == JsonPathStringType::DoubleQuotes {
+                                self.partial_operation = JsonPathPartialOperator::OpenDoubleQuotes(std::mem::take(name));
+                            } else {
+                                panic!("unexpected character '{}'", c);
+                            }
+                        }
+                        JsonPathPartialOperator::OpenSingleQuotes(name) => self.partial_operation = JsonPathPartialOperator::ClosedSingleQuotes(std::mem::take(name)),
+                        JsonPathPartialOperator::OpenDoubleQuotes(name) => name.push(c),
+                        _ => todo!()
+                    }
+                }
+                '"' => {
+                    match &mut self.partial_operation {
+                        JsonPathPartialOperator::OpenRootBracket => {
+                            self.operations.push(JsonPathOperator::ObjectRoot);
+                            self.partial_operation = JsonPathPartialOperator::OpenDoubleQuotes(String::new());
+                        }
+                        JsonPathPartialOperator::OpenBracket => self.partial_operation = JsonPathPartialOperator::OpenDoubleQuotes(String::new()),
+                        JsonPathPartialOperator::FilterExpression(_) => todo!(),
+                        JsonPathPartialOperator::EscapeCharater(string_type, name) => {
+                            name.push(c);
+                            if *string_type == JsonPathStringType::SingleQuotes {
+                                self.partial_operation = JsonPathPartialOperator::OpenSingleQuotes(std::mem::take(name));
+                            } else if *string_type == JsonPathStringType::DoubleQuotes {
+                                self.partial_operation = JsonPathPartialOperator::OpenDoubleQuotes(std::mem::take(name));
+                            } else {
+                                panic!("unexpected character '{}'", c);
+                            }
+                        }
+                        JsonPathPartialOperator::OpenSingleQuotes(name) => name.push(c),
+                        JsonPathPartialOperator::OpenDoubleQuotes(name) => self.partial_operation = JsonPathPartialOperator::ClosedDoubleQuotes(std::mem::take(name)),
+                        _ => todo!()
+                    }
+                }
+                '\\' => {
+                    match &mut self.partial_operation {
+                        JsonPathPartialOperator::EscapeCharater(_, _) => {}
+                        JsonPathPartialOperator::OpenSingleQuotes(name) => self.partial_operation = JsonPathPartialOperator::EscapeCharater(JsonPathStringType::SingleQuotes, std::mem::take(name)),
+                        JsonPathPartialOperator::OpenDoubleQuotes(name) => self.partial_operation = JsonPathPartialOperator::EscapeCharater(JsonPathStringType::DoubleQuotes, std::mem::take(name)),
+                        _ => todo!()
                     }
                 }
                 '\n' => {
                     match &mut self.partial_operation {
                         JsonPathPartialOperator::None => {}
                         JsonPathPartialOperator::Root => self.operations.push(JsonPathOperator::ObjectRoot),
-                        JsonPathPartialOperator::ArrayRoot => self.operations.push(JsonPathOperator::ArrayRoot(-1)),
+                        JsonPathPartialOperator::OpenRootBracket => self.operations.push(JsonPathOperator::ArrayRoot(-1)),
                         JsonPathPartialOperator::ArrayRootIndex(index) => {
                             if let Ok(index) = index.as_str().parse::<isize>() {
                                 self.operations.push(JsonPathOperator::ArrayRoot(index));
                             }
                         }
                         JsonPathPartialOperator::PreMemberAccess => self.operations.push(JsonPathOperator::MemberAccess(String::new())),
-                        JsonPathPartialOperator::MemberAccess(name) => self.operations.push(JsonPathOperator::MemberAccess(std::mem::replace(name, String::new()))),
-                        JsonPathPartialOperator::DeepScanMemberAccess(name) => self.operations.push(JsonPathOperator::DeepScanMemberAccess(std::mem::replace(name, String::new()))),
+                        JsonPathPartialOperator::MemberAccess(name) => self.operations.push(JsonPathOperator::MemberAccess(std::mem::take(name))),
+                        JsonPathPartialOperator::DeepScanMemberAccess(name) => self.operations.push(JsonPathOperator::DeepScanMemberAccess(std::mem::take(name))),
+                        JsonPathPartialOperator::OpenBracket => self.operations.push(JsonPathOperator::MemberAccess(String::new())),
+                        JsonPathPartialOperator::ArrayIndex(index) => {
+                            if let Ok(index) = index.as_str().parse::<isize>() {
+                                self.operations.push(JsonPathOperator::ArrayIndex(index));
+                            }
+                        }
+                        JsonPathPartialOperator::ArraySlice(_) => todo!(),
+                        JsonPathPartialOperator::FilterExpression(_) => todo!(),
+                        JsonPathPartialOperator::EscapeCharater(_, _) => todo!(),
+                        JsonPathPartialOperator::OpenSingleQuotes(_) => todo!(),
+                        JsonPathPartialOperator::OpenDoubleQuotes(_) => todo!(),
+                        JsonPathPartialOperator::ClosedSingleQuotes(_) => todo!(),
+                        JsonPathPartialOperator::ClosedDoubleQuotes(_) => todo!(),
                     }
                 }
                 _ => {
@@ -509,8 +639,17 @@ impl JsonPath {
                         JsonPathPartialOperator::DeepScanMemberAccess(name) => name.push(c),
                         JsonPathPartialOperator::None => todo!("{}", c),
                         JsonPathPartialOperator::Root => todo!("{}", c),
-                        JsonPathPartialOperator::ArrayRoot => todo!("{}", c),
+                        JsonPathPartialOperator::OpenRootBracket => todo!("{}", c),
                         JsonPathPartialOperator::ArrayRootIndex(_) => todo!("{}", c),
+                        JsonPathPartialOperator::OpenBracket => todo!("{}", c),
+                        JsonPathPartialOperator::ArrayIndex(_) => todo!("{}", c),
+                        JsonPathPartialOperator::ArraySlice(_) => todo!("{}", c),
+                        JsonPathPartialOperator::FilterExpression(_) => todo!("{}", c),
+                        JsonPathPartialOperator::EscapeCharater(_, _) => todo!("{}", c),
+                        JsonPathPartialOperator::OpenSingleQuotes(name) => name.push(c),
+                        JsonPathPartialOperator::OpenDoubleQuotes(name) => name.push(c),
+                        JsonPathPartialOperator::ClosedSingleQuotes(_) => todo!("{}", c),
+                        JsonPathPartialOperator::ClosedDoubleQuotes(_) => todo!("{}", c),
                     }
                 }
             }
@@ -541,12 +680,29 @@ impl fmt::Display for JsonPath {
                 }
                 JsonPathOperator::MemberAccess(name) => {
                     output.push_str("MemberAccess(");
-                    output.push_str(name.as_str());
+                    output.push_str(name);
                     output.push_str(")");
                 }
                 JsonPathOperator::DeepScanMemberAccess(name) => {
                     output.push_str("DeepScanMemberAccess(");
-                    output.push_str(name.as_str());
+                    output.push_str(name);
+                    output.push_str(")");
+                }
+                JsonPathOperator::ArrayIndex(index) => {
+                    output.push_str("ArrayIndex(");
+                    output.push_str(index.to_string().as_str());
+                    output.push_str(")");
+                }
+                JsonPathOperator::ArraySlice(start, end) => {
+                    output.push_str("ArraySlice(");
+                    output.push_str(start.to_string().as_str());
+                    output.push_str(",");
+                    output.push_str(end.to_string().as_str());
+                    output.push_str(")");
+                }
+                JsonPathOperator::FilterExpression(filter) => {
+                    output.push_str("FilterExpression(");
+                    output.push_str(filter);
                     output.push_str(")");
                 }
             };
