@@ -180,6 +180,8 @@ fn search() {
     println!("Path '$['batters'].batter[252]' parsed as '{}'", JsonPath::from("$['batters'].batter[252]"));
     println!("Path '$['\\'batters\\''].batter[252]' parsed as '{}'", JsonPath::from("$['\\'batters\\''].batter[252]"));
     println!("Path '$[\"'batters'\"].batter[252]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252]"));
+    println!("Path '$[\"\\\"batters\\\"\"].batter[252]' parsed as '{}'", JsonPath::from("$[\"\\\"batters\\\"\"].batter[252]"));
+    println!("Path '$[\"'batters'\"].batter[252]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252]"));
     println!("Path '$[\"'batters'\"].batter[252][1:10]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252][1:10]"));
     //println!("Path '$.batters.batter[2].type' parsed as '{}'", JsonPath::from("$.batters.batter[2].type"));
 }
@@ -421,12 +423,6 @@ enum JsonPathOperator {
     FilterExpression(String),
 }
 
-#[derive(Eq, PartialEq)]
-enum JsonPathStringType {
-    SingleQuotes,
-    DoubleQuotes,
-}
-
 enum JsonPathPartialOperator {
     Root,
     OpenRootBracket,
@@ -438,7 +434,7 @@ enum JsonPathPartialOperator {
     ArrayIndex(String),
     ArraySlice(String),
     FilterExpression(String),
-    EscapeCharater(JsonPathStringType,String),
+    EscapeCharacter(),
     OpenSingleQuotes(String),
     OpenDoubleQuotes(String),
     ClosedSingleQuotes(String),
@@ -568,16 +564,6 @@ impl JsonPath {
                                 }
                             }
                             JsonPathPartialOperator::FilterExpression(_) => todo!(),
-                            JsonPathPartialOperator::EscapeCharater(string_type, mut name) => {
-                                name.push(c);
-                                if string_type == JsonPathStringType::SingleQuotes {
-                                    self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
-                                } else if string_type == JsonPathStringType::DoubleQuotes {
-                                    self.partial_operations.push_front(JsonPathPartialOperator::OpenDoubleQuotes(name));
-                                } else {
-                                    panic!("unexpected character '{}'", c);
-                                }
-                            }
                             JsonPathPartialOperator::OpenSingleQuotes(mut name) => {
                                 name.push(c);
                                 self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
@@ -607,14 +593,19 @@ impl JsonPath {
                                 self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(String::new()));
                             }
                             JsonPathPartialOperator::FilterExpression(_) => todo!(),
-                            JsonPathPartialOperator::EscapeCharater(string_type, mut name) => {
-                                name.push(c);
-                                if string_type == JsonPathStringType::SingleQuotes {
-                                    self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
-                                } else if string_type == JsonPathStringType::DoubleQuotes {
-                                    self.partial_operations.push_front(JsonPathPartialOperator::OpenDoubleQuotes(name));
-                                } else {
-                                    panic!("unexpected character '{}'", c);
+                            JsonPathPartialOperator::EscapeCharacter() => {
+                                if let Some(partial_operation) = self.partial_operations.pop_front() {
+                                    match partial_operation {
+                                        JsonPathPartialOperator::OpenSingleQuotes(mut name) => {
+                                            name.push(c);
+                                            self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
+                                        }
+                                        JsonPathPartialOperator::OpenDoubleQuotes(mut name) => {
+                                            name.push(c);
+                                            self.partial_operations.push_front(JsonPathPartialOperator::OpenDoubleQuotes(name));
+                                        }
+                                        _ => panic!("unexpected character '{}'", c),
+                                    }
                                 }
                             }
                             JsonPathPartialOperator::OpenSingleQuotes(name) => self.partial_operations.push_front(JsonPathPartialOperator::ClosedSingleQuotes(name)),
@@ -637,14 +628,19 @@ impl JsonPath {
                             }
                             JsonPathPartialOperator::OpenBracket => self.partial_operations.push_front(JsonPathPartialOperator::OpenDoubleQuotes(String::new())),
                             JsonPathPartialOperator::FilterExpression(_) => todo!(),
-                            JsonPathPartialOperator::EscapeCharater(string_type, mut name) => {
-                                name.push(c);
-                                if string_type == JsonPathStringType::SingleQuotes {
-                                    self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
-                                } else if string_type == JsonPathStringType::DoubleQuotes {
-                                    self.partial_operations.push_front(JsonPathPartialOperator::OpenDoubleQuotes(name));
-                                } else {
-                                    panic!("unexpected character '{}'", c);
+                            JsonPathPartialOperator::EscapeCharacter() => {
+                                if let Some(partial_operation) = self.partial_operations.pop_front() {
+                                    match partial_operation {
+                                        JsonPathPartialOperator::OpenSingleQuotes(mut name) => {
+                                            name.push(c);
+                                            self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
+                                        }
+                                        JsonPathPartialOperator::OpenDoubleQuotes(mut name) => {
+                                            name.push(c);
+                                            self.partial_operations.push_front(JsonPathPartialOperator::OpenDoubleQuotes(name));
+                                        }
+                                        _ => panic!("unexpected character '{}'", c),
+                                    }
                                 }
                             }
                             JsonPathPartialOperator::OpenSingleQuotes(mut name) => {
@@ -661,9 +657,15 @@ impl JsonPath {
                 '\\' => {
                     if let Some(partial_operation) = self.partial_operations.pop_front() {
                         match partial_operation {
-                            JsonPathPartialOperator::EscapeCharater(_, _) => {}
-                            JsonPathPartialOperator::OpenSingleQuotes(name) => self.partial_operations.push_front(JsonPathPartialOperator::EscapeCharater(JsonPathStringType::SingleQuotes, name)),
-                            JsonPathPartialOperator::OpenDoubleQuotes(name) => self.partial_operations.push_front(JsonPathPartialOperator::EscapeCharater(JsonPathStringType::DoubleQuotes, name)),
+                            JsonPathPartialOperator::EscapeCharacter() => {}
+                            JsonPathPartialOperator::OpenSingleQuotes(name) => {
+                                self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
+                                self.partial_operations.push_front(JsonPathPartialOperator::EscapeCharacter());
+                            }
+                            JsonPathPartialOperator::OpenDoubleQuotes(name) => {
+                                self.partial_operations.push_front(JsonPathPartialOperator::OpenDoubleQuotes(name));
+                                self.partial_operations.push_front(JsonPathPartialOperator::EscapeCharacter())
+                            }
                             _ => todo!()
                         }
                     } else {
@@ -692,7 +694,7 @@ impl JsonPath {
                             }
                             JsonPathPartialOperator::ArraySlice(_) => todo!("{}", c),
                             JsonPathPartialOperator::FilterExpression(_) => todo!("{}", c),
-                            JsonPathPartialOperator::EscapeCharater(_, _) => todo!("{}", c),
+                            JsonPathPartialOperator::EscapeCharacter() => todo!("{}", c),
                             JsonPathPartialOperator::OpenSingleQuotes(mut name) => {
                                 name.push(c);
                                 self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
@@ -729,7 +731,7 @@ impl JsonPath {
                             }
                             JsonPathPartialOperator::ArraySlice(_) => todo!(),
                             JsonPathPartialOperator::FilterExpression(_) => todo!(),
-                            JsonPathPartialOperator::EscapeCharater(_, _) => todo!(),
+                            JsonPathPartialOperator::EscapeCharacter() => todo!(),
                             JsonPathPartialOperator::OpenSingleQuotes(_) => todo!(),
                             JsonPathPartialOperator::OpenDoubleQuotes(_) => todo!(),
                             JsonPathPartialOperator::ClosedSingleQuotes(_) => todo!(),
@@ -756,7 +758,7 @@ impl JsonPath {
                             JsonPathPartialOperator::ArrayIndex(_) => todo!("{}", c),
                             JsonPathPartialOperator::ArraySlice(_) => todo!("{}", c),
                             JsonPathPartialOperator::FilterExpression(_) => todo!("{}", c),
-                            JsonPathPartialOperator::EscapeCharater(_, _) => todo!("{}", c),
+                            JsonPathPartialOperator::EscapeCharacter() => todo!("{}", c),
                             JsonPathPartialOperator::OpenSingleQuotes(mut name) => {
                                 name.push(c);
                                 self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
