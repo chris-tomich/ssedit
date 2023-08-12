@@ -183,7 +183,8 @@ fn search() {
     println!("Path '$[\"\\\"batters\\\"\"].batter[252]' parsed as '{}'", JsonPath::from("$[\"\\\"batters\\\"\"].batter[252]"));
     println!("Path '$[\"'batters'\"].batter[252]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252]"));
     println!("Path '$[\"'batters'\"].batter[252][1:10]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252][1:10]"));
-    //println!("Path '$.batters.batter[2].type' parsed as '{}'", JsonPath::from("$.batters.batter[2].type"));
+    println!("Path '$[\"'batters'\"].batter[252][1:10][?(@.color == 'blue')]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252][1:10][?(@.color == 'blue')]"));
+    println!("Path '$[\"'batters'\"].batter[252][1:10][?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252][1:10][?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]"));
 }
 
 #[derive(PartialEq)]
@@ -433,7 +434,8 @@ enum JsonPathPartialOperator {
     OpenBracket,
     ArrayIndex(String),
     ArraySlice(String),
-    FilterExpression(String),
+    OpenFilter,
+    FilterExpression{depth: isize, expr: String},
     EscapeCharacter(),
     OpenSingleQuotes(String),
     OpenDoubleQuotes(String),
@@ -484,6 +486,10 @@ impl JsonPath {
                                 self.operations.push(JsonPathOperator::DeepScanMemberAccess(name));
                                 self.partial_operations.push_front(JsonPathPartialOperator::PreMemberAccess);
                             }
+                            JsonPathPartialOperator::FilterExpression{depth, mut expr} => {
+                                expr.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth, expr})
+                            }
                             _ => todo!(),
                         }
                     } else {
@@ -497,6 +503,10 @@ impl JsonPath {
                             JsonPathPartialOperator::MemberAccess(name) => {
                                 self.operations.push(JsonPathOperator::MemberAccess(name));
                                 self.partial_operations.push_front(JsonPathPartialOperator::OpenBracket);
+                            }
+                            JsonPathPartialOperator::FilterExpression{depth, mut expr} => {
+                                expr.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth, expr})
                             }
                             _ => self.partial_operations.push_front(JsonPathPartialOperator::OpenBracket),
                         }
@@ -520,6 +530,10 @@ impl JsonPath {
                             JsonPathPartialOperator::ArraySlice(mut index) => {
                                 index.push(c);
                                 self.partial_operations.push_front(JsonPathPartialOperator::ArraySlice(index));
+                            }
+                            JsonPathPartialOperator::FilterExpression{depth, mut expr} => {
+                                expr.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth, expr})
                             }
                             _ => todo!(),
                         }
@@ -563,7 +577,10 @@ impl JsonPath {
                                     panic!("open ended slices not supported yet");
                                 }
                             }
-                            JsonPathPartialOperator::FilterExpression(_) => todo!(),
+                            JsonPathPartialOperator::FilterExpression{depth, mut expr} => {
+                                expr.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth, expr})
+                            }
                             JsonPathPartialOperator::OpenSingleQuotes(mut name) => {
                                 name.push(c);
                                 self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
@@ -592,7 +609,10 @@ impl JsonPath {
                             JsonPathPartialOperator::OpenBracket => {
                                 self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(String::new()));
                             }
-                            JsonPathPartialOperator::FilterExpression(_) => todo!(),
+                            JsonPathPartialOperator::FilterExpression{depth, mut expr} => {
+                                expr.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth, expr})
+                            }
                             JsonPathPartialOperator::EscapeCharacter() => {
                                 if let Some(partial_operation) = self.partial_operations.pop_front() {
                                     match partial_operation {
@@ -627,7 +647,10 @@ impl JsonPath {
                                 self.partial_operations.push_front(JsonPathPartialOperator::OpenDoubleQuotes(String::new()));
                             }
                             JsonPathPartialOperator::OpenBracket => self.partial_operations.push_front(JsonPathPartialOperator::OpenDoubleQuotes(String::new())),
-                            JsonPathPartialOperator::FilterExpression(_) => todo!(),
+                            JsonPathPartialOperator::FilterExpression{depth, mut expr} => {
+                                expr.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth, expr})
+                            }
                             JsonPathPartialOperator::EscapeCharacter() => {
                                 if let Some(partial_operation) = self.partial_operations.pop_front() {
                                     match partial_operation {
@@ -657,6 +680,10 @@ impl JsonPath {
                 '\\' => {
                     if let Some(partial_operation) = self.partial_operations.pop_front() {
                         match partial_operation {
+                            JsonPathPartialOperator::FilterExpression{depth, mut expr} => {
+                                expr.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth, expr})
+                            }
                             JsonPathPartialOperator::EscapeCharacter() => {}
                             JsonPathPartialOperator::OpenSingleQuotes(name) => {
                                 self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
@@ -693,7 +720,11 @@ impl JsonPath {
                                 self.partial_operations.push_front(JsonPathPartialOperator::ArraySlice(index));
                             }
                             JsonPathPartialOperator::ArraySlice(_) => todo!("{}", c),
-                            JsonPathPartialOperator::FilterExpression(_) => todo!("{}", c),
+                            JsonPathPartialOperator::OpenFilter => todo!("{}", c),
+                            JsonPathPartialOperator::FilterExpression{depth, mut expr} => {
+                                expr.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth, expr})
+                            }
                             JsonPathPartialOperator::EscapeCharacter() => todo!("{}", c),
                             JsonPathPartialOperator::OpenSingleQuotes(mut name) => {
                                 name.push(c);
@@ -708,6 +739,113 @@ impl JsonPath {
                         }
                     } else {
                         todo!("{}", c);
+                    }
+                }
+                '?' => {
+                    if let Some(partial_operation) = self.partial_operations.pop_front() {
+                        match partial_operation {
+                            JsonPathPartialOperator::Root => todo!(),
+                            JsonPathPartialOperator::OpenRootBracket => todo!(),
+                            JsonPathPartialOperator::ArrayRootIndex(_) => todo!(),
+                            JsonPathPartialOperator::PreMemberAccess => todo!(),
+                            JsonPathPartialOperator::MemberAccess(_) => todo!(),
+                            JsonPathPartialOperator::DeepScanMemberAccess(_) => todo!(),
+                            JsonPathPartialOperator::OpenBracket => {
+                                self.partial_operations.push_front(JsonPathPartialOperator::OpenFilter);
+                            }
+                            JsonPathPartialOperator::ArrayIndex(_) => todo!(),
+                            JsonPathPartialOperator::ArraySlice(_) => todo!(),
+                            JsonPathPartialOperator::OpenFilter => todo!("{}", c),
+                            JsonPathPartialOperator::FilterExpression{depth, mut expr} => {
+                                expr.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth, expr})
+                            }
+                            JsonPathPartialOperator::EscapeCharacter() => todo!(),
+                            JsonPathPartialOperator::OpenSingleQuotes(mut name) => {
+                                name.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
+                            }
+                            JsonPathPartialOperator::OpenDoubleQuotes(mut name) => {
+                                name.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::OpenDoubleQuotes(name));
+                            }
+                            JsonPathPartialOperator::ClosedSingleQuotes(_) => todo!(),
+                            JsonPathPartialOperator::ClosedDoubleQuotes(_) => todo!(),
+                        }
+                    } else {
+                        todo!("{}", c);
+                    }
+                }
+                '(' => {
+                    if let Some(partial_operation) = self.partial_operations.pop_front() {
+                        match partial_operation {
+                            JsonPathPartialOperator::Root => todo!(),
+                            JsonPathPartialOperator::OpenRootBracket => todo!(),
+                            JsonPathPartialOperator::ArrayRootIndex(_) => todo!(),
+                            JsonPathPartialOperator::PreMemberAccess => todo!(),
+                            JsonPathPartialOperator::MemberAccess(_) => todo!(),
+                            JsonPathPartialOperator::DeepScanMemberAccess(_) => todo!(),
+                            JsonPathPartialOperator::OpenBracket => todo!(),
+                            JsonPathPartialOperator::ArrayIndex(_) => todo!(),
+                            JsonPathPartialOperator::ArraySlice(_) => todo!(),
+                            JsonPathPartialOperator::OpenFilter => {
+                                self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth: 0, expr: String::new()});
+                            }
+                            JsonPathPartialOperator::FilterExpression{mut depth, mut expr} => {
+                                expr.push(c);
+                                depth += 1;
+                                self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth, expr})
+                            }
+                            JsonPathPartialOperator::EscapeCharacter() => todo!(),
+                            JsonPathPartialOperator::OpenSingleQuotes(mut name) => {
+                                name.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
+                            }
+                            JsonPathPartialOperator::OpenDoubleQuotes(mut name) => {
+                                name.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::OpenDoubleQuotes(name));
+                            }
+                            JsonPathPartialOperator::ClosedSingleQuotes(_) => todo!(),
+                            JsonPathPartialOperator::ClosedDoubleQuotes(_) => todo!(),
+                        }
+                    } else {
+                        todo!("{}", c);
+                    }
+                }
+                ')' => {
+                    if let Some(partial_operation) = self.partial_operations.pop_front() {
+                        match partial_operation {
+                            JsonPathPartialOperator::Root => todo!(),
+                            JsonPathPartialOperator::OpenRootBracket => todo!(),
+                            JsonPathPartialOperator::ArrayRootIndex(_) => todo!(),
+                            JsonPathPartialOperator::PreMemberAccess => todo!(),
+                            JsonPathPartialOperator::MemberAccess(_) => todo!(),
+                            JsonPathPartialOperator::DeepScanMemberAccess(_) => todo!(),
+                            JsonPathPartialOperator::OpenBracket => todo!(),
+                            JsonPathPartialOperator::ArrayIndex(_) => todo!(),
+                            JsonPathPartialOperator::ArraySlice(_) => todo!(),
+                            JsonPathPartialOperator::OpenFilter => todo!(),
+                            JsonPathPartialOperator::FilterExpression{mut depth, mut expr} => {
+                                if depth > 0 {
+                                    expr.push(c);
+                                    depth -= 1;
+                                    self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth, expr});
+                                } else {
+                                    self.operations.push(JsonPathOperator::FilterExpression(expr));
+                                }
+                            }
+                            JsonPathPartialOperator::EscapeCharacter() => todo!(),
+                            JsonPathPartialOperator::OpenSingleQuotes(mut name) => {
+                                name.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::OpenSingleQuotes(name));
+                            }
+                            JsonPathPartialOperator::OpenDoubleQuotes(mut name) => {
+                                name.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::OpenDoubleQuotes(name));
+                            }
+                            JsonPathPartialOperator::ClosedSingleQuotes(_) => todo!(),
+                            JsonPathPartialOperator::ClosedDoubleQuotes(_) => todo!(),
+                        }
                     }
                 }
                 '\n' => {
@@ -730,7 +868,8 @@ impl JsonPath {
                                 }
                             }
                             JsonPathPartialOperator::ArraySlice(_) => todo!(),
-                            JsonPathPartialOperator::FilterExpression(_) => todo!(),
+                            JsonPathPartialOperator::OpenFilter => todo!(),
+                            JsonPathPartialOperator::FilterExpression{depth: _, expr: _} => todo!(),
                             JsonPathPartialOperator::EscapeCharacter() => todo!(),
                             JsonPathPartialOperator::OpenSingleQuotes(_) => todo!(),
                             JsonPathPartialOperator::OpenDoubleQuotes(_) => todo!(),
@@ -757,7 +896,11 @@ impl JsonPath {
                             JsonPathPartialOperator::OpenBracket => todo!("{}", c),
                             JsonPathPartialOperator::ArrayIndex(_) => todo!("{}", c),
                             JsonPathPartialOperator::ArraySlice(_) => todo!("{}", c),
-                            JsonPathPartialOperator::FilterExpression(_) => todo!("{}", c),
+                            JsonPathPartialOperator::OpenFilter => todo!("{}", c),
+                            JsonPathPartialOperator::FilterExpression{depth, mut expr} => {
+                                expr.push(c);
+                                self.partial_operations.push_front(JsonPathPartialOperator::FilterExpression{depth, expr})
+                            }
                             JsonPathPartialOperator::EscapeCharacter() => todo!("{}", c),
                             JsonPathPartialOperator::OpenSingleQuotes(mut name) => {
                                 name.push(c);
@@ -771,7 +914,7 @@ impl JsonPath {
                             JsonPathPartialOperator::ClosedDoubleQuotes(_) => todo!("{}", c),
                         }
                     } else {
-                        todo!("{}", c);
+                        todo!("[{}]", c);
                     }
                 }
             }
