@@ -1,9 +1,9 @@
 mod json;
 
 use core::fmt;
-use std::{io::{self, Read, BufRead}, collections::{LinkedList, VecDeque}};
+use std::{io::{self, Read, BufRead}, collections::LinkedList};
 use clap::Parser;
-use json::lexer::{JsonStreamToken, JsonStreamLexer, JsonStream, JsonTokenType};
+use json::lexer::{JsonStreamToken, JsonStreamLexer, JsonStreamStatus, JsonTokenType};
 use strum_macros::Display;
 
 #[derive(Parser, Debug)]
@@ -18,7 +18,7 @@ struct SSEditArgs {
 
 fn main() -> io::Result<()> {
     let read = false;
-    let finder = false;
+    let finder = true;
 
     if read {
         analyse();
@@ -56,47 +56,47 @@ fn find() {
             Ok(_) => {
                 let c = buffer[0] as char;
 
-                match json_getter.parse(json_lexer.push_char(c)) {
-                    JsonStream::None => {}
-                    JsonStream::Single(token) => {
-                        capture_mode = true;
-                        captured_tokens.push_back(token);
-                    }
-                    JsonStream::Double(token1, token2) => {
-                        capture_mode = true;
-                        captured_tokens.push_back(token1);
-                        captured_tokens.push_back(token2);
-                    }
-                    JsonStream::Finish => {
-                        let mut starting = true;
-                        if capture_mode {
-                            for token in &captured_tokens {
-                                if token.token_type != JsonTokenType::Whitespace {
-                                    // We need this check because whitespace is already included in the uncapture stream.
-                                    // This is hard to resolve because whitespace usually only ends once a new token has
-                                    // begun meaning you don't know it's unnecessary till it's already been passed as a token.
-                                    starting = false;
-                                }
+                json_lexer.push_char(c);
 
-                                if !starting {
-                                    if args.replace.is_empty() {
-                                        print!("{}", token.token_parsed);
-                                    } else {
-                                        if token.token_type == JsonTokenType::NewLine || token.token_type == JsonTokenType::Whitespace {
-                                            print!("{}", token.token_raw);
-                                        } else if token.token_type == JsonTokenType::StringValue {
-                                            print!("\"{}\"", args.replace);
-                                            break;
+                loop {
+                    match json_getter.parse(json_lexer.pop_token()) {
+                        JsonStreamStatus::None => break,
+                        JsonStreamStatus::Token(token) => {
+                            capture_mode = true;
+                            captured_tokens.push_back(token);
+                        }
+                        JsonStreamStatus::Finish => {
+                            let mut starting = true;
+                            if capture_mode {
+                                for token in &captured_tokens {
+                                    if token.token_type != JsonTokenType::Whitespace {
+                                        // We need this check because whitespace is already included in the uncapture stream.
+                                        // This is hard to resolve because whitespace usually only ends once a new token has
+                                        // begun meaning you don't know it's unnecessary till it's already been passed as a token.
+                                        starting = false;
+                                    }
+
+                                    if !starting {
+                                        if args.replace.is_empty() {
+                                            print!("{}", token.token_parsed);
                                         } else {
-                                            print!("{}", args.replace);
-                                            break;
+                                            if token.token_type == JsonTokenType::NewLine || token.token_type == JsonTokenType::Whitespace {
+                                                print!("{}", token.token_raw);
+                                            } else if token.token_type == JsonTokenType::StringValue {
+                                                print!("\"{}\"", args.replace);
+                                                break;
+                                            } else {
+                                                print!("{}", args.replace);
+                                                break;
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        capture_mode = false;
+                            capture_mode = false;
+                            break;
+                        }
                     }
                 }
 
@@ -126,28 +126,28 @@ fn analyse() {
                 let line = result.unwrap_or_else(|_|{eof = true; String::new()});
 
                 for c in line.chars() {
-                    match json_lexer.push_char(c) {
-                        JsonStream::None => {}
-                        JsonStream::Single(token) => tokens.push(token),
-                        JsonStream::Double(token1, token2) => {
-                            tokens.push(token1);
-                            tokens.push(token2);
+                    json_lexer.push_char(c);
+
+                    loop {
+                        match json_lexer.pop_token() {
+                            JsonStreamStatus::None => break,
+                            JsonStreamStatus::Token(token) => tokens.push(token),
+                            JsonStreamStatus::Finish => break,
                         }
-                        JsonStream::Finish => {}
                     }
                 }
             },
             None => break,
         }
 
-        match json_lexer.push_char('\n') {
-            JsonStream::None => {}
-            JsonStream::Single(token) => tokens.push(token),
-            JsonStream::Double(token1, token2) => {
-                tokens.push(token1);
-                tokens.push(token2);
+        json_lexer.push_char('\n');
+
+        loop {
+            match json_lexer.pop_token() {
+                JsonStreamStatus::None => break,
+                JsonStreamStatus::Token(token) => tokens.push(token),
+                JsonStreamStatus::Finish => break,
             }
-            JsonStream::Finish => {}
         }
     }
 
@@ -219,47 +219,20 @@ impl JsonSelect {
         }
     }
 
-    fn parse(&mut self, stream: JsonStream) -> JsonStream {
+    fn parse(&mut self, stream: JsonStreamStatus) -> JsonStreamStatus {
         match stream {
-            JsonStream::None => {}
-            JsonStream::Single(token) => {
+            JsonStreamStatus::None => {}
+            JsonStreamStatus::Token(token) => {
                 if self.process_token(&token) {
-                    return JsonStream::Single(token);
+                    return JsonStreamStatus::Token(token);
                 } else if self.parse_mode == JsonSelectParseMode::Finish {
-                    return JsonStream::Finish;
+                    return JsonStreamStatus::Finish;
                 }
             }
-            JsonStream::Double(token1, token2) => {
-                let mut token1_processed = false;
-
-                if self.process_token(&token1) {
-                    token1_processed = true;
-                } else if self.parse_mode == JsonSelectParseMode::Finish {
-                    return JsonStream::Finish;
-                }
-
-                if self.process_token(&token2) {
-                    if token1_processed {
-                        return JsonStream::Double(token1, token2);
-                    } else {
-                        return JsonStream::Single(token2);
-                    }
-                } else if self.parse_mode == JsonSelectParseMode::Finish {
-                    if token1_processed {
-                        return JsonStream::Single(token1);
-                    }
-
-                    return JsonStream::Finish;
-                }
-
-                if token1_processed {
-                    return JsonStream::Single(token1);
-                }
-            }
-            JsonStream::Finish => return stream,
+            JsonStreamStatus::Finish => return stream,
         }
 
-        JsonStream::None
+        JsonStreamStatus::None
     }
 
     fn process_token(&mut self, token: &JsonStreamToken) -> bool {
