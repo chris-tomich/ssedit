@@ -16,8 +16,7 @@ enum ReadMode {
     None,
 }
 
-#[derive(Display)]
-#[derive(PartialEq)]
+#[derive(Display, PartialEq)]
 pub enum JsonTokenType {
     PropertyName,
     StringValue,
@@ -41,7 +40,7 @@ pub struct JsonStreamToken {
 pub enum JsonStreamStatus {
     None,
     Token(JsonStreamToken),
-    Finish
+    Finish,
 }
 
 pub struct JsonStreamLexer {
@@ -55,7 +54,14 @@ pub struct JsonStreamLexer {
 
 impl JsonStreamLexer {
     pub fn new() -> JsonStreamLexer {
-        JsonStreamLexer { struct_type_stack: Vec::new(), read_mode: ReadMode::None, property_name_toggle: true, raw_token_builder: String::new(), parsed_token_builder: String::new(), parsed_tokens: VecDeque::new() }
+        JsonStreamLexer {
+            struct_type_stack: Vec::new(),
+            read_mode: ReadMode::None,
+            property_name_toggle: true,
+            raw_token_builder: String::new(),
+            parsed_token_builder: String::new(),
+            parsed_tokens: VecDeque::new(),
+        }
     }
 
     fn is_in_array(&self) -> bool {
@@ -78,7 +84,11 @@ impl JsonStreamLexer {
     pub fn push_char(&mut self, c: char) {
         match c {
             '{' => {
-                let object_open_token = JsonStreamToken { token_raw: String::from("{"), token_parsed: String::from("{"), token_type: JsonTokenType::ObjectOpen };
+                let object_open_token = JsonStreamToken {
+                    token_raw: String::from("{"),
+                    token_parsed: String::from("{"),
+                    token_type: JsonTokenType::ObjectOpen,
+                };
 
                 match self.read_mode {
                     ReadMode::String => {
@@ -89,8 +99,14 @@ impl JsonStreamLexer {
                     ReadMode::Whitespace => {
                         self.struct_type_stack.push(StructType::Object);
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::Whitespace }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(object_open_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type: JsonTokenType::Whitespace,
+                            }));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(object_open_token));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
 
@@ -99,14 +115,19 @@ impl JsonStreamLexer {
                     ReadMode::None => {
                         self.struct_type_stack.push(StructType::Object);
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(object_open_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(object_open_token));
 
                         self.property_name_toggle = true;
                     }
                 }
             }
             '}' => {
-                let object_close_token = JsonStreamToken { token_raw: String::from("}"), token_parsed: String::from("}"), token_type: JsonTokenType::ObjectClose };
+                let object_close_token = JsonStreamToken {
+                    token_raw: String::from("}"),
+                    token_parsed: String::from("}"),
+                    token_type: JsonTokenType::ObjectClose,
+                };
 
                 match self.read_mode {
                     ReadMode::String => {
@@ -114,36 +135,68 @@ impl JsonStreamLexer {
                         self.parsed_token_builder.push(c);
                     }
                     ReadMode::Number => {
-                        if self.struct_type_stack.pop().unwrap_or_else(||panic!("stack ended unexpectedly")) != StructType::Object {
+                        if self
+                            .struct_type_stack
+                            .pop()
+                            .unwrap_or_else(|| panic!("stack ended unexpectedly"))
+                            != StructType::Object
+                        {
                             panic!("expected to close an object but closed an array");
                         }
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::NumberValue }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(object_close_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type: JsonTokenType::NumberValue,
+                            }));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(object_close_token));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
                     }
                     ReadMode::Whitespace => {
-                        if self.struct_type_stack.pop().unwrap_or_else(||panic!("stack ended unexpectedly")) != StructType::Object {
+                        if self
+                            .struct_type_stack
+                            .pop()
+                            .unwrap_or_else(|| panic!("stack ended unexpectedly"))
+                            != StructType::Object
+                        {
                             panic!("expected to close an object but closed an array");
                         }
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::Whitespace }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(object_close_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type: JsonTokenType::Whitespace,
+                            }));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(object_close_token));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
                     }
                     ReadMode::None => {
-                        if self.struct_type_stack.pop().unwrap_or_else(||panic!("stack ended unexpectedly")) != StructType::Object {
+                        if self
+                            .struct_type_stack
+                            .pop()
+                            .unwrap_or_else(|| panic!("stack ended unexpectedly"))
+                            != StructType::Object
+                        {
                             panic!("expected to close an object but closed an array");
                         }
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(object_close_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(object_close_token));
                     }
                 }
             }
             '[' => {
-                let array_open_token = JsonStreamToken { token_raw: String::from("["), token_parsed: String::from("["), token_type: JsonTokenType::ArrayOpen };
+                let array_open_token = JsonStreamToken {
+                    token_raw: String::from("["),
+                    token_parsed: String::from("["),
+                    token_type: JsonTokenType::ArrayOpen,
+                };
 
                 match self.read_mode {
                     ReadMode::String => {
@@ -154,20 +207,31 @@ impl JsonStreamLexer {
                     ReadMode::Whitespace => {
                         self.struct_type_stack.push(StructType::Array);
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::Whitespace }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(array_open_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type: JsonTokenType::Whitespace,
+                            }));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(array_open_token));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
                     }
                     ReadMode::None => {
                         self.struct_type_stack.push(StructType::Array);
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(array_open_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(array_open_token));
                     }
                 }
             }
             ']' => {
-                let array_close_token = JsonStreamToken { token_raw: String::from("]"), token_parsed: String::from("]"), token_type: JsonTokenType::ArrayClose };
+                let array_close_token = JsonStreamToken {
+                    token_raw: String::from("]"),
+                    token_parsed: String::from("]"),
+                    token_type: JsonTokenType::ArrayClose,
+                };
 
                 match self.read_mode {
                     ReadMode::String => {
@@ -175,37 +239,70 @@ impl JsonStreamLexer {
                         self.parsed_token_builder.push(c);
                     }
                     ReadMode::Number => {
-                        if self.struct_type_stack.pop().unwrap_or_else(||panic!("stack ended unexpectedly")) != StructType::Array {
+                        if self
+                            .struct_type_stack
+                            .pop()
+                            .unwrap_or_else(|| panic!("stack ended unexpectedly"))
+                            != StructType::Array
+                        {
                             panic!("expected to close an array but closed an object");
                         }
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::NumberValue }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(array_close_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type: JsonTokenType::NumberValue,
+                            }));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(array_close_token));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
                     }
                     ReadMode::Whitespace => {
-                        if self.struct_type_stack.pop().unwrap_or_else(||panic!("stack ended unexpectedly")) != StructType::Array {
+                        if self
+                            .struct_type_stack
+                            .pop()
+                            .unwrap_or_else(|| panic!("stack ended unexpectedly"))
+                            != StructType::Array
+                        {
                             panic!("expected to close an array but closed an object");
                         }
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::Whitespace }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(array_close_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type: JsonTokenType::Whitespace,
+                            }));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(array_close_token));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
                     }
                     ReadMode::None => {
-                        if self.struct_type_stack.pop().unwrap_or_else(||panic!("stack ended unexpectedly")) != StructType::Array {
+                        if self
+                            .struct_type_stack
+                            .pop()
+                            .unwrap_or_else(|| panic!("stack ended unexpectedly"))
+                            != StructType::Array
+                        {
                             panic!("expected to close an array but closed an object");
                         }
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(array_close_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(array_close_token));
                     }
                 }
             }
             '"' => {
                 if self.read_mode == ReadMode::Whitespace {
-                    self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::Whitespace }));
+                    self.parsed_tokens
+                        .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                            token_raw: self.raw_token_builder.clone(),
+                            token_parsed: self.parsed_token_builder.clone(),
+                            token_type: JsonTokenType::Whitespace,
+                        }));
                     self.raw_token_builder.clear();
                     self.parsed_token_builder.clear();
                 }
@@ -221,14 +318,21 @@ impl JsonStreamLexer {
                         } else {
                             JsonTokenType::StringValue
                         };
-                        
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type }));
+
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type,
+                            }));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
 
                         self.read_mode = ReadMode::None;
                     }
-                    ReadMode::Number => panic!("malformed JSON, reading a number didn't expect a \""),
+                    ReadMode::Number => {
+                        panic!("malformed JSON, reading a number didn't expect a \"")
+                    }
                     _ => {
                         self.read_mode = ReadMode::String;
                     }
@@ -237,15 +341,18 @@ impl JsonStreamLexer {
             '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
                 match self.read_mode {
                     ReadMode::Whitespace => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::Whitespace }));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type: JsonTokenType::Whitespace,
+                            }));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
 
                         self.read_mode = ReadMode::Number
                     }
-                    ReadMode::None => {
-                        self.read_mode = ReadMode::Number
-                    }
+                    ReadMode::None => self.read_mode = ReadMode::Number,
                     _ => {}
                 }
 
@@ -253,7 +360,11 @@ impl JsonStreamLexer {
                 self.parsed_token_builder.push(c);
             }
             ',' => {
-                let delimiter_token = JsonStreamToken { token_raw: String::from(","), token_parsed: String::from(","), token_type: JsonTokenType::PropertyDelimiter };
+                let delimiter_token = JsonStreamToken {
+                    token_raw: String::from(","),
+                    token_parsed: String::from(","),
+                    token_type: JsonTokenType::PropertyDelimiter,
+                };
 
                 match self.read_mode {
                     ReadMode::String => {
@@ -261,11 +372,17 @@ impl JsonStreamLexer {
                         self.parsed_token_builder.push(c);
                     }
                     ReadMode::Number => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::NumberValue }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(delimiter_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type: JsonTokenType::NumberValue,
+                            }));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(delimiter_token));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
-                        
+
                         self.read_mode = ReadMode::None;
 
                         self.property_name_toggle = match self.struct_type_stack.last() {
@@ -277,8 +394,14 @@ impl JsonStreamLexer {
                         };
                     }
                     ReadMode::Whitespace => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::Whitespace }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(delimiter_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type: JsonTokenType::Whitespace,
+                            }));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(delimiter_token));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
 
@@ -293,7 +416,8 @@ impl JsonStreamLexer {
                         };
                     }
                     ReadMode::None => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(delimiter_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(delimiter_token));
 
                         self.property_name_toggle = match self.struct_type_stack.last() {
                             Some(struct_type) => match struct_type {
@@ -308,10 +432,15 @@ impl JsonStreamLexer {
             ' ' | '\t' => {
                 match self.read_mode {
                     ReadMode::Number => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::NumberValue }));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type: JsonTokenType::NumberValue,
+                            }));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
-                        
+
                         self.read_mode = ReadMode::Whitespace;
                     }
                     ReadMode::None => {
@@ -326,31 +455,53 @@ impl JsonStreamLexer {
             ':' => {
                 self.property_name_toggle = !self.property_name_toggle;
 
-                self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: String::from(":"), token_parsed: String::from(":"), token_type: JsonTokenType::KeyValueDelimiter }));
+                self.parsed_tokens
+                    .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                        token_raw: String::from(":"),
+                        token_parsed: String::from(":"),
+                        token_type: JsonTokenType::KeyValueDelimiter,
+                    }));
             }
             '\n' => {
-                let newline_token = JsonStreamToken { token_raw: String::from("\n"), token_parsed: String::from("\n"), token_type: JsonTokenType::NewLine };
+                let newline_token = JsonStreamToken {
+                    token_raw: String::from("\n"),
+                    token_parsed: String::from("\n"),
+                    token_type: JsonTokenType::NewLine,
+                };
 
                 match self.read_mode {
                     ReadMode::String => panic!("unexpected end of string"),
                     ReadMode::Number => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::NumberValue }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(newline_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type: JsonTokenType::NumberValue,
+                            }));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(newline_token));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
-                        
+
                         self.read_mode = ReadMode::None;
                     }
                     ReadMode::Whitespace => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken { token_raw: self.raw_token_builder.clone(), token_parsed: self.parsed_token_builder.clone(), token_type: JsonTokenType::Whitespace }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(newline_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(JsonStreamToken {
+                                token_raw: self.raw_token_builder.clone(),
+                                token_parsed: self.parsed_token_builder.clone(),
+                                token_type: JsonTokenType::Whitespace,
+                            }));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(newline_token));
                         self.raw_token_builder.clear();
                         self.parsed_token_builder.clear();
 
                         self.read_mode = ReadMode::None;
                     }
                     ReadMode::None => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(newline_token));
+                        self.parsed_tokens
+                            .push_back(JsonStreamStatus::Token(newline_token));
                     }
                 }
             }
