@@ -2,7 +2,7 @@ mod json;
 
 use clap::Parser;
 use core::fmt;
-use json::lexer::{JsonStreamLexer, JsonStreamStatus, JsonStreamToken, JsonTokenType};
+use json::{lexer::{JsonStreamLexer, JsonStreamStatus, JsonStreamToken, JsonTokenType}, lexer2};
 use std::{
     collections::LinkedList,
     io::{self, BufRead, Read},
@@ -21,17 +21,66 @@ struct SSEditArgs {
 
 fn main() -> io::Result<()> {
     let read = false;
-    let finder = true;
+    let finder = false;
+    let searcher = false;
 
     if read {
         analyse();
     } else if finder {
         find();
-    } else {
+    } else if searcher {
         search();
+    } else {
+        new_lexer();
     }
 
     Ok(())
+}
+
+fn new_lexer() {
+    let mut json_lexer = lexer2::JsonStreamLexer::new();
+
+    let mut buffer = [0; 1];
+
+    loop {
+        match io::stdin().lock().read(&mut buffer) {
+            Ok(0) => break,
+            Ok(_) => {
+                let c = buffer[0] as char;
+
+                json_lexer.push_char(c);
+
+                loop {
+                    match json_lexer.pop_token() {
+                        lexer2::JsonStreamStatus::None => break,
+                        lexer2::JsonStreamStatus::Token(token) => {
+                            print!("{}", token);
+                            match token {
+                                lexer2::JsonToken::PropertyName { raw, name } => print!("({}, {})", raw, name),
+                                lexer2::JsonToken::StringValue { raw, value } => todo!(),
+                                lexer2::JsonToken::NumberValue { raw, value } => todo!(),
+                                lexer2::JsonToken::ObjectOpen(raw) => print!("({})", raw),
+                                lexer2::JsonToken::ObjectClose(_) => todo!(),
+                                lexer2::JsonToken::ArrayOpen(_) => todo!(),
+                                lexer2::JsonToken::ArrayClose(_) => todo!(),
+                                lexer2::JsonToken::Whitespace(_) => todo!(),
+                                lexer2::JsonToken::NewLine(_) => todo!(),
+                                lexer2::JsonToken::PropertyDelimiter(_) => todo!(),
+                                lexer2::JsonToken::KeyValueDelimiter(_) => todo!(),
+                            }
+                            println!();
+                        }
+                        lexer2::JsonStreamStatus::Finish => {
+                            println!("Finished");
+                            break;
+                        }
+                    }
+                }
+            }
+            Err(_) => todo!(),
+            
+        }
+    }
 }
 
 fn find() {
