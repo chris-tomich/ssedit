@@ -68,7 +68,8 @@ fn new_lexer() {
                             match token {
                                 lexer2::JsonToken::PropertyName { raw, name } => print!("({},{})", raw, name),
                                 lexer2::JsonToken::StringValue { raw, value } => print!("({},{})", raw, value),
-                                lexer2::JsonToken::NumberValue { raw: _, value: _ } => todo!(),
+                                lexer2::JsonToken::IntegerValue { raw, value } => print!("({},{})", raw, value),
+                                lexer2::JsonToken::FloatValue { raw, value } => print!("({},{})", raw, value),
                                 lexer2::JsonToken::ObjectOpen(raw) => print!("({})", raw),
                                 lexer2::JsonToken::ObjectClose(_) => todo!(),
                                 lexer2::JsonToken::ArrayOpen(_) => todo!(),
