@@ -147,7 +147,13 @@ impl JsonStreamLexer {
                                 data: String::new(),
                             });
                         }
-                        JsonPartialToken::PropertyValue => todo!(),
+                        JsonPartialToken::PropertyValue => {
+                            self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes {
+                                raw: String::from(c),
+                                data: String::new(),
+                            });
+                        }
                         JsonPartialToken::PropertyComplete => todo!(),
                         JsonPartialToken::OpenDoubleQuotes { mut raw, data } => {
                             raw.push(c);
@@ -284,6 +290,39 @@ impl JsonStreamLexer {
                     todo!();
                 }
             }
+            ',' => {
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::PropertyName => panic!("malformed property"),
+                        JsonPartialToken::PropertyValue => panic!("malformed property"),
+                        JsonPartialToken::PropertyComplete => {
+                            self.tokens.push_back(JsonToken::PropertyDelimiter(String::from(c)));
+                            self.partial_tokens.push(JsonPartialToken::PropertyName);
+                        }
+                        JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => panic!("malformed string"),
+                        JsonPartialToken::NumberValue(raw_number) => {
+                            if raw_number.contains(".") {
+                                if let Ok(number) = raw_number.as_str().parse::<f64>() {
+                                    self.tokens.push_back(JsonToken::FloatValue { raw: raw_number, value: number });
+                                    self.partial_tokens.push(JsonPartialToken::PropertyName);
+                                } else {
+                                    panic!("malformed number");
+                                }
+                            } else {
+                                if let Ok(number) = raw_number.as_str().parse::<isize>() {
+                                    self.tokens.push_back(JsonToken::IntegerValue { raw: raw_number, value: number });
+                                    self.partial_tokens.push(JsonPartialToken::PropertyName);
+                                } else {
+                                    panic!("malformed number");
+                                }
+                            }
+
+                            self.tokens.push_back(JsonToken::PropertyDelimiter(String::from(c)));
+                        }
+                        JsonPartialToken::Whitespace(_) => todo!(),
+                    }
+                }
+            }
             '\n' => {
                 if let Some(partial_token) = self.partial_tokens.pop() {
                     match partial_token {
@@ -296,11 +335,15 @@ impl JsonStreamLexer {
                                 if let Ok(number) = raw_number.as_str().parse::<f64>() {
                                     self.tokens.push_back(JsonToken::FloatValue { raw: raw_number, value: number });
                                     self.partial_tokens.push(JsonPartialToken::PropertyComplete);
+                                } else {
+                                    panic!("malformed number");
                                 }
                             } else {
                                 if let Ok(number) = raw_number.as_str().parse::<isize>() {
                                     self.tokens.push_back(JsonToken::IntegerValue { raw: raw_number, value: number });
                                     self.partial_tokens.push(JsonPartialToken::PropertyComplete);
+                                } else {
+                                    panic!("malformed number");
                                 }
                             }
                         }
