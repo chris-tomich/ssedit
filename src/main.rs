@@ -67,21 +67,23 @@ fn new_lexer() {
                             print!("{}", token);
                             match token {
                                 lexer2::JsonToken::PropertyName { raw, name } => {
-                                    print!("({}, {})", raw, name)
+                                    print!("({},{})", raw, name)
                                 }
-                                lexer2::JsonToken::StringValue { raw: _, value: _ } => todo!(),
+                                lexer2::JsonToken::StringValue { raw, value } => {
+                                    print!("({},{})", raw, value)
+                                }
                                 lexer2::JsonToken::NumberValue { raw: _, value: _ } => todo!(),
                                 lexer2::JsonToken::ObjectOpen(raw) => print!("({})", raw),
                                 lexer2::JsonToken::ObjectClose(_) => todo!(),
                                 lexer2::JsonToken::ArrayOpen(_) => todo!(),
                                 lexer2::JsonToken::ArrayClose(_) => todo!(),
                                 lexer2::JsonToken::Whitespace(whitespace) => {
-                                    print!("('{}')", whitespace)
+                                    print!("({})", whitespace)
                                 }
                                 lexer2::JsonToken::NewLine(_) => print!(""),
                                 lexer2::JsonToken::PropertyDelimiter(_) => todo!(),
                                 lexer2::JsonToken::KeyValueDelimiter(delimiter) => {
-                                    print!("('{}')", delimiter)
+                                    print!("({})", delimiter)
                                 }
                             }
                         }
