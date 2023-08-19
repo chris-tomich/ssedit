@@ -45,6 +45,8 @@ fn new_lexer() {
 
     let mut buffer = [0; 1];
 
+    let mut is_first = true;
+
     loop {
         match io::stdin().lock().read(&mut buffer) {
             Ok(0) => break,
@@ -57,21 +59,31 @@ fn new_lexer() {
                     match json_lexer.pop_token() {
                         lexer2::JsonStreamStatus::None => break,
                         lexer2::JsonStreamStatus::Token(token) => {
+                            if is_first {
+                                is_first = false;
+                            } else {
+                                print!(" -> ");
+                            }
                             print!("{}", token);
                             match token {
-                                lexer2::JsonToken::PropertyName { raw, name } => print!("({}, {})", raw, name),
-                                lexer2::JsonToken::StringValue { raw, value } => todo!(),
-                                lexer2::JsonToken::NumberValue { raw, value } => todo!(),
+                                lexer2::JsonToken::PropertyName { raw, name } => {
+                                    print!("({}, {})", raw, name)
+                                }
+                                lexer2::JsonToken::StringValue { raw: _, value: _ } => todo!(),
+                                lexer2::JsonToken::NumberValue { raw: _, value: _ } => todo!(),
                                 lexer2::JsonToken::ObjectOpen(raw) => print!("({})", raw),
                                 lexer2::JsonToken::ObjectClose(_) => todo!(),
                                 lexer2::JsonToken::ArrayOpen(_) => todo!(),
                                 lexer2::JsonToken::ArrayClose(_) => todo!(),
-                                lexer2::JsonToken::Whitespace(whitespace) => print!("('{}')", whitespace),
-                                lexer2::JsonToken::NewLine(_) => todo!(),
+                                lexer2::JsonToken::Whitespace(whitespace) => {
+                                    print!("('{}')", whitespace)
+                                }
+                                lexer2::JsonToken::NewLine(_) => print!(""),
                                 lexer2::JsonToken::PropertyDelimiter(_) => todo!(),
-                                lexer2::JsonToken::KeyValueDelimiter(_) => todo!(),
+                                lexer2::JsonToken::KeyValueDelimiter(delimiter) => {
+                                    print!("('{}')", delimiter)
+                                }
                             }
-                            println!();
                         }
                         lexer2::JsonStreamStatus::Finish => {
                             println!("Finished");
@@ -83,6 +95,8 @@ fn new_lexer() {
             Err(_) => todo!(),
         }
     }
+
+    println!()
 }
 
 fn find() {
