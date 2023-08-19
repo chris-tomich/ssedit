@@ -20,6 +20,7 @@ pub enum JsonToken {
 pub enum JsonPartialToken {
     PropertyName,
     OpenDoubleQuotes { raw: String, data: String },
+    Whitespace(String),
 }
 
 pub enum JsonStreamStatus {
@@ -60,9 +61,13 @@ impl JsonStreamLexer {
                             self.partial_tokens
                                 .push(JsonPartialToken::OpenDoubleQuotes { raw, data });
                         }
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                        }
                     }
                 } else {
-                    self.tokens.push_back(JsonToken::ObjectOpen(String::from(c)));
+                    self.tokens
+                        .push_back(JsonToken::ObjectOpen(String::from(c)));
                     self.partial_tokens.push(JsonPartialToken::PropertyName);
                 }
             }
@@ -76,9 +81,13 @@ impl JsonStreamLexer {
                             self.partial_tokens
                                 .push(JsonPartialToken::OpenDoubleQuotes { raw, data });
                         }
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                        }
                     }
                 } else {
-                    self.tokens.push_back(JsonToken::ObjectClose(String::from(c)));
+                    self.tokens
+                        .push_back(JsonToken::ObjectClose(String::from(c)));
                 }
             }
             '[' => {
@@ -90,6 +99,9 @@ impl JsonStreamLexer {
                             data.push(c);
                             self.partial_tokens
                                 .push(JsonPartialToken::OpenDoubleQuotes { raw, data });
+                        }
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            self.tokens.push_back(JsonToken::Whitespace(whitespace));
                         }
                     }
                 } else {
@@ -106,9 +118,13 @@ impl JsonStreamLexer {
                             self.partial_tokens
                                 .push(JsonPartialToken::OpenDoubleQuotes { raw, data });
                         }
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                        }
                     }
                 } else {
-                    self.tokens.push_back(JsonToken::ArrayClose(String::from(c)));
+                    self.tokens
+                        .push_back(JsonToken::ArrayClose(String::from(c)));
                 }
             }
             '"' => {
@@ -116,16 +132,53 @@ impl JsonStreamLexer {
                     match partial_token {
                         JsonPartialToken::PropertyName => {
                             self.partial_tokens.push(JsonPartialToken::PropertyName);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes { raw: String::from(c), data: String::new() });
+                            self.partial_tokens
+                                .push(JsonPartialToken::OpenDoubleQuotes {
+                                    raw: String::from(c),
+                                    data: String::new(),
+                                });
                         }
                         JsonPartialToken::OpenDoubleQuotes { mut raw, data } => {
                             raw.push(c);
                             if let Some(partial_token) = self.partial_tokens.pop() {
                                 match partial_token {
-                                    JsonPartialToken::PropertyName => self.tokens.push_back(JsonToken::PropertyName { raw, name: data }),
-                                    JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => todo!(),
+                                    JsonPartialToken::PropertyName => self
+                                        .tokens
+                                        .push_back(JsonToken::PropertyName { raw, name: data }),
+                                    JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => {
+                                        todo!()
+                                    }
+                                    JsonPartialToken::Whitespace(_) => todo!(),
                                 }
                             }
+                        }
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                            self.partial_tokens
+                                .push(JsonPartialToken::OpenDoubleQuotes {
+                                    raw: String::from(c),
+                                    data: String::new(),
+                                });
+                        }
+                    }
+                }
+            }
+            ' ' | '\t' => {
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::PropertyName => {
+                            self.partial_tokens.push(JsonPartialToken::PropertyName);
+                            self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
+                        }
+                        JsonPartialToken::OpenDoubleQuotes { mut raw, mut data } => {
+                            raw.push(c);
+                            data.push(c);
+                            self.partial_tokens
+                                .push(JsonPartialToken::OpenDoubleQuotes { raw, data })
+                        }
+                        JsonPartialToken::Whitespace(mut whitespace) => {
+                            whitespace.push(c);
+                            self.partial_tokens.push(JsonPartialToken::Whitespace(whitespace));
                         }
                     }
                 }
@@ -133,12 +186,15 @@ impl JsonStreamLexer {
             _ => {
                 if let Some(partial_token) = self.partial_tokens.pop() {
                     match partial_token {
-                        JsonPartialToken::PropertyName => self.partial_tokens.push(JsonPartialToken::PropertyName),
+                        JsonPartialToken::PropertyName => {
+                            self.partial_tokens.push(JsonPartialToken::PropertyName)
+                        }
                         JsonPartialToken::OpenDoubleQuotes { mut raw, data } => {
                             raw.push(c);
                             self.partial_tokens
                                 .push(JsonPartialToken::OpenDoubleQuotes { raw, data });
                         }
+                        JsonPartialToken::Whitespace(_) => todo!(),
                     }
                 }
             }

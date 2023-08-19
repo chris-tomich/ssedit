@@ -2,7 +2,10 @@ mod json;
 
 use clap::Parser;
 use core::fmt;
-use json::{lexer::{JsonStreamLexer, JsonStreamStatus, JsonStreamToken, JsonTokenType}, lexer2};
+use json::{
+    lexer::{JsonStreamLexer, JsonStreamStatus, JsonStreamToken, JsonTokenType},
+    lexer2,
+};
 use std::{
     collections::LinkedList,
     io::{self, BufRead, Read},
@@ -63,7 +66,7 @@ fn new_lexer() {
                                 lexer2::JsonToken::ObjectClose(_) => todo!(),
                                 lexer2::JsonToken::ArrayOpen(_) => todo!(),
                                 lexer2::JsonToken::ArrayClose(_) => todo!(),
-                                lexer2::JsonToken::Whitespace(_) => todo!(),
+                                lexer2::JsonToken::Whitespace(whitespace) => print!("('{}')", whitespace),
                                 lexer2::JsonToken::NewLine(_) => todo!(),
                                 lexer2::JsonToken::PropertyDelimiter(_) => todo!(),
                                 lexer2::JsonToken::KeyValueDelimiter(_) => todo!(),
@@ -78,7 +81,6 @@ fn new_lexer() {
                 }
             }
             Err(_) => todo!(),
-            
         }
     }
 }
