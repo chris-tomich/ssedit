@@ -71,7 +71,7 @@ fn new_lexer() {
                                 lexer2::JsonToken::IntegerValue { raw, value } => print!("({},{})", raw, value),
                                 lexer2::JsonToken::FloatValue { raw, value } => print!("({},{})", raw, value),
                                 lexer2::JsonToken::ObjectOpen(raw) => print!("({})", raw),
-                                lexer2::JsonToken::ObjectClose(_) => todo!(),
+                                lexer2::JsonToken::ObjectClose(raw) => print!("({})", raw),
                                 lexer2::JsonToken::ArrayOpen(_) => todo!(),
                                 lexer2::JsonToken::ArrayClose(_) => todo!(),
                                 lexer2::JsonToken::Whitespace(whitespace) => print!("({})", whitespace),
@@ -79,10 +79,6 @@ fn new_lexer() {
                                 lexer2::JsonToken::PropertyDelimiter(delimiter) => print!("{}", delimiter),
                                 lexer2::JsonToken::KeyValueDelimiter(delimiter) => print!("({})", delimiter),
                             }
-                        }
-                        lexer2::JsonStreamStatus::Finish => {
-                            println!("Finished");
-                            break;
                         }
                     }
                 }
