@@ -218,6 +218,7 @@ impl JsonStreamLexer {
                         JsonPartialToken::NumberValue(_) => todo!(),
                         JsonPartialToken::Whitespace(whitespace) => {
                             self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                            self.tokens.push_back(JsonToken::ArrayClose(String::from(c)));
                         }
                     }
                 } else {
