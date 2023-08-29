@@ -76,7 +76,8 @@ fn new_lexer() {
                                 lexer2::JsonToken::ArrayClose(raw) => print!("({})", raw),
                                 lexer2::JsonToken::Whitespace(whitespace) => print!("({})", whitespace),
                                 lexer2::JsonToken::NewLine(_) => print!(""),
-                                lexer2::JsonToken::PropertyDelimiter(delimiter) => print!("{}", delimiter),
+                                lexer2::JsonToken::ArrayItemDelimiter(delimiter) => print!("({})", delimiter),
+                                lexer2::JsonToken::PropertyDelimiter(delimiter) => print!("({})", delimiter),
                                 lexer2::JsonToken::KeyValueDelimiter(delimiter) => print!("({})", delimiter),
                             }
                         }
