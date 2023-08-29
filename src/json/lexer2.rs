@@ -621,6 +621,7 @@ impl JsonStreamLexer {
                             if let Some(partial_token) = self.partial_tokens.pop() {
                                 match partial_token {
                                     JsonPartialToken::Array => {
+                                        self.tokens.push_back(JsonToken::Whitespace(whitespace));
                                         self.partial_tokens.push(JsonPartialToken::Array);
                                         self.partial_tokens.push(JsonPartialToken::NumberValue(String::from(c)));
                                     }
