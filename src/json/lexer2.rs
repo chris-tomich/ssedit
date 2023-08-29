@@ -26,7 +26,7 @@ pub enum JsonPartialToken {
     PropertyName,
     PropertyValue,
     PropertyComplete,
-    OpenDoubleQuotes { raw: String, data: String },
+    StringValue { raw: String, data: String },
     Root,
     NumberValue(String),
     Whitespace(String),
@@ -78,10 +78,10 @@ impl JsonStreamLexer {
                             self.partial_tokens.push(JsonPartialToken::Object);
                         }
                         JsonPartialToken::PropertyComplete => todo!(),
-                        JsonPartialToken::OpenDoubleQuotes { mut raw, mut data } => {
+                        JsonPartialToken::StringValue { mut raw, mut data } => {
                             raw.push(c);
                             data.push(c);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes { raw, data });
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, data });
                         }
                         JsonPartialToken::Root => {
                             self.tokens.push_back(JsonToken::ObjectOpen(String::from(c)));
@@ -118,7 +118,7 @@ impl JsonStreamLexer {
                                     JsonPartialToken::PropertyName => todo!(),
                                     JsonPartialToken::PropertyValue => todo!(),
                                     JsonPartialToken::PropertyComplete => todo!(),
-                                    JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => todo!(),
+                                    JsonPartialToken::StringValue { raw: _, data: _ } => todo!(),
                                     JsonPartialToken::Root => todo!(),
                                     JsonPartialToken::NumberValue(_) => todo!(),
                                     JsonPartialToken::Whitespace(_) => todo!(),
@@ -127,10 +127,10 @@ impl JsonStreamLexer {
                                 todo!();
                             }
                         }
-                        JsonPartialToken::OpenDoubleQuotes { mut raw, mut data } => {
+                        JsonPartialToken::StringValue { mut raw, mut data } => {
                             raw.push(c);
                             data.push(c);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes { raw, data });
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, data });
                         }
                         JsonPartialToken::Root => todo!(),
                         JsonPartialToken::NumberValue(_) => todo!(),
@@ -160,10 +160,10 @@ impl JsonStreamLexer {
                             self.partial_tokens.push(JsonPartialToken::Array);
                         }
                         JsonPartialToken::PropertyComplete => todo!(),
-                        JsonPartialToken::OpenDoubleQuotes { mut raw, mut data } => {
+                        JsonPartialToken::StringValue { mut raw, mut data } => {
                             raw.push(c);
                             data.push(c);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes { raw, data });
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, data });
                         }
                         JsonPartialToken::Root => {
                             self.tokens.push_back(JsonToken::ArrayOpen(String::from(c)));
@@ -190,7 +190,7 @@ impl JsonStreamLexer {
                                         self.partial_tokens.push(JsonPartialToken::Array);
                                     }
                                     JsonPartialToken::PropertyComplete => todo!(),
-                                    JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => todo!(),
+                                    JsonPartialToken::StringValue { raw: _, data: _ } => todo!(),
                                     JsonPartialToken::Root => {
                                         self.tokens.push_back(JsonToken::ArrayOpen(String::from(c)));
                                         self.partial_tokens.push(JsonPartialToken::Root);
@@ -221,7 +221,7 @@ impl JsonStreamLexer {
                                     JsonPartialToken::PropertyName => todo!(),
                                     JsonPartialToken::PropertyValue => todo!(),
                                     JsonPartialToken::PropertyComplete => todo!(),
-                                    JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => todo!(),
+                                    JsonPartialToken::StringValue { raw: _, data: _ } => todo!(),
                                     JsonPartialToken::Root => todo!(),
                                     JsonPartialToken::NumberValue(_) => todo!(),
                                     JsonPartialToken::Whitespace(_) => todo!(),
@@ -232,10 +232,10 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyName => todo!(),
                         JsonPartialToken::PropertyValue => todo!(),
                         JsonPartialToken::PropertyComplete => todo!(),
-                        JsonPartialToken::OpenDoubleQuotes { mut raw, mut data } => {
+                        JsonPartialToken::StringValue { mut raw, mut data } => {
                             raw.push(c);
                             data.push(c);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes { raw, data });
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, data });
                         }
                         JsonPartialToken::Root => todo!(),
                         JsonPartialToken::NumberValue(raw_number) => {
@@ -265,7 +265,7 @@ impl JsonStreamLexer {
                     match partial_token {
                         JsonPartialToken::Array => {
                             self.partial_tokens.push(JsonPartialToken::Array);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes {
+                            self.partial_tokens.push(JsonPartialToken::StringValue {
                                 raw: String::from(c),
                                 data: String::new(),
                             });
@@ -274,20 +274,20 @@ impl JsonStreamLexer {
                         JsonPartialToken::Object => todo!(),
                         JsonPartialToken::PropertyName => {
                             self.partial_tokens.push(JsonPartialToken::PropertyName);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes {
+                            self.partial_tokens.push(JsonPartialToken::StringValue {
                                 raw: String::from(c),
                                 data: String::new(),
                             });
                         }
                         JsonPartialToken::PropertyValue => {
                             self.partial_tokens.push(JsonPartialToken::PropertyValue);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes {
+                            self.partial_tokens.push(JsonPartialToken::StringValue {
                                 raw: String::from(c),
                                 data: String::new(),
                             });
                         }
                         JsonPartialToken::PropertyComplete => todo!(),
-                        JsonPartialToken::OpenDoubleQuotes { mut raw, data } => {
+                        JsonPartialToken::StringValue { mut raw, data } => {
                             raw.push(c);
                             if let Some(partial_token) = self.partial_tokens.pop() {
                                 match partial_token {
@@ -311,7 +311,7 @@ impl JsonStreamLexer {
                                         self.partial_tokens.push(JsonPartialToken::PropertyComplete);
                                     }
                                     JsonPartialToken::PropertyComplete => todo!(),
-                                    JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => todo!(),
+                                    JsonPartialToken::StringValue { raw: _, data: _ } => todo!(),
                                     JsonPartialToken::Root => todo!(),
                                     JsonPartialToken::NumberValue(_) => todo!(),
                                     JsonPartialToken::Whitespace(_) => todo!(),
@@ -329,7 +329,7 @@ impl JsonStreamLexer {
                                 match partial_token {
                                     JsonPartialToken::Array => {
                                         self.partial_tokens.push(JsonPartialToken::Array);
-                                        self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes {
+                                        self.partial_tokens.push(JsonPartialToken::StringValue {
                                             raw: String::from(c),
                                             data: String::new(),
                                         });
@@ -337,27 +337,27 @@ impl JsonStreamLexer {
                                     JsonPartialToken::ArrayItemComplete => todo!(),
                                     JsonPartialToken::Object => {
                                         self.partial_tokens.push(JsonPartialToken::Object);
-                                        self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes {
+                                        self.partial_tokens.push(JsonPartialToken::StringValue {
                                             raw: String::from(c),
                                             data: String::new(),
                                         });
                                     }
                                     JsonPartialToken::PropertyName => {
                                         self.partial_tokens.push(JsonPartialToken::PropertyName);
-                                        self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes {
+                                        self.partial_tokens.push(JsonPartialToken::StringValue {
                                             raw: String::from(c),
                                             data: String::new(),
                                         });
                                     }
                                     JsonPartialToken::PropertyValue => {
                                         self.partial_tokens.push(JsonPartialToken::PropertyValue);
-                                        self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes {
+                                        self.partial_tokens.push(JsonPartialToken::StringValue {
                                             raw: String::from(c),
                                             data: String::new(),
                                         });
                                     }
                                     JsonPartialToken::PropertyComplete => todo!(),
-                                    JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => todo!(),
+                                    JsonPartialToken::StringValue { raw: _, data: _ } => todo!(),
                                     JsonPartialToken::Root => todo!(),
                                     JsonPartialToken::NumberValue(_) => todo!(),
                                     JsonPartialToken::Whitespace(_) => todo!(),
@@ -398,10 +398,10 @@ impl JsonStreamLexer {
                             self.partial_tokens.push(JsonPartialToken::PropertyComplete);
                             self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
                         }
-                        JsonPartialToken::OpenDoubleQuotes { mut raw, mut data } => {
+                        JsonPartialToken::StringValue { mut raw, mut data } => {
                             raw.push(c);
                             data.push(c);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes { raw, data });
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, data });
                         }
                         JsonPartialToken::Root => {
                             self.partial_tokens.push(JsonPartialToken::Root);
@@ -440,7 +440,7 @@ impl JsonStreamLexer {
                                         self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
                                     }
                                     JsonPartialToken::PropertyComplete => todo!(),
-                                    JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => todo!(),
+                                    JsonPartialToken::StringValue { raw: _, data: _ } => todo!(),
                                     JsonPartialToken::Root => todo!(),
                                     JsonPartialToken::NumberValue(_) => todo!(),
                                     JsonPartialToken::Whitespace(_) => todo!(),
@@ -470,10 +470,10 @@ impl JsonStreamLexer {
                             self.partial_tokens.push(JsonPartialToken::PropertyValue);
                         }
                         JsonPartialToken::PropertyComplete => todo!(),
-                        JsonPartialToken::OpenDoubleQuotes { mut raw, mut data } => {
+                        JsonPartialToken::StringValue { mut raw, mut data } => {
                             raw.push(c);
                             data.push(c);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes { raw, data });
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, data });
                         }
                         JsonPartialToken::Root => todo!(),
                         JsonPartialToken::NumberValue(_) => todo!(),
@@ -490,7 +490,7 @@ impl JsonStreamLexer {
                                         self.partial_tokens.push(JsonPartialToken::PropertyValue);
                                     }
                                     JsonPartialToken::PropertyComplete => todo!(),
-                                    JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => todo!(),
+                                    JsonPartialToken::StringValue { raw: _, data: _ } => todo!(),
                                     JsonPartialToken::Root => todo!(),
                                     JsonPartialToken::NumberValue(_) => todo!(),
                                     JsonPartialToken::Whitespace(_) => todo!(),
@@ -518,7 +518,7 @@ impl JsonStreamLexer {
                             self.tokens.push_back(JsonToken::PropertyDelimiter(String::from(c)));
                             self.partial_tokens.push(JsonPartialToken::PropertyName);
                         }
-                        JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => panic!("malformed string"),
+                        JsonPartialToken::StringValue { raw: _, data: _ } => panic!("malformed string"),
                         JsonPartialToken::Root => todo!(),
                         JsonPartialToken::NumberValue(raw_number) => {
                             if raw_number.contains(".") {
@@ -558,7 +558,7 @@ impl JsonStreamLexer {
                                         self.partial_tokens.push(JsonPartialToken::PropertyValue);
                                     }
                                     JsonPartialToken::PropertyComplete => todo!(),
-                                    JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => todo!(),
+                                    JsonPartialToken::StringValue { raw: _, data: _ } => todo!(),
                                     JsonPartialToken::Root => todo!(),
                                     JsonPartialToken::NumberValue(_) => todo!(),
                                     JsonPartialToken::Whitespace(_) => todo!(),
@@ -580,7 +580,7 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyName => todo!(),
                         JsonPartialToken::PropertyValue => todo!(),
                         JsonPartialToken::PropertyComplete => self.partial_tokens.push(JsonPartialToken::PropertyComplete),
-                        JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => todo!(),
+                        JsonPartialToken::StringValue { raw: _, data: _ } => todo!(),
                         JsonPartialToken::Root => todo!(),
                         JsonPartialToken::NumberValue(raw_number) => {
                             if raw_number.contains(".") {
@@ -618,10 +618,10 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyName => todo!(),
                         JsonPartialToken::PropertyValue => todo!(),
                         JsonPartialToken::PropertyComplete => todo!(),
-                        JsonPartialToken::OpenDoubleQuotes { mut raw, mut data } => {
+                        JsonPartialToken::StringValue { mut raw, mut data } => {
                             raw.push(c);
                             data.push(c);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes { raw, data });
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, data });
                         }
                         JsonPartialToken::Root => todo!(),
                         JsonPartialToken::NumberValue(mut number) => {
@@ -650,10 +650,10 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyName => todo!(),
                         JsonPartialToken::PropertyValue => self.partial_tokens.push(JsonPartialToken::NumberValue(String::from(c))),
                         JsonPartialToken::PropertyComplete => todo!(),
-                        JsonPartialToken::OpenDoubleQuotes { mut raw, mut data } => {
+                        JsonPartialToken::StringValue { mut raw, mut data } => {
                             raw.push(c);
                             data.push(c);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes { raw, data });
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, data });
                         }
                         JsonPartialToken::Root => todo!(),
                         JsonPartialToken::NumberValue(mut number) => {
@@ -675,7 +675,7 @@ impl JsonStreamLexer {
                                         self.partial_tokens.push(JsonPartialToken::NumberValue(String::from(c)));
                                     }
                                     JsonPartialToken::PropertyComplete => todo!(),
-                                    JsonPartialToken::OpenDoubleQuotes { raw: _, data: _ } => todo!(),
+                                    JsonPartialToken::StringValue { raw: _, data: _ } => todo!(),
                                     JsonPartialToken::Root => todo!(),
                                     JsonPartialToken::NumberValue(_) => todo!(),
                                     JsonPartialToken::Whitespace(_) => todo!(),
@@ -698,10 +698,10 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyName => todo!("{}", c),
                         JsonPartialToken::PropertyValue => todo!("{}", c),
                         JsonPartialToken::PropertyComplete => todo!("{}", c),
-                        JsonPartialToken::OpenDoubleQuotes { mut raw, mut data } => {
+                        JsonPartialToken::StringValue { mut raw, mut data } => {
                             raw.push(c);
                             data.push(c);
-                            self.partial_tokens.push(JsonPartialToken::OpenDoubleQuotes { raw, data });
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, data });
                         }
                         JsonPartialToken::Root => todo!(),
                         JsonPartialToken::NumberValue(_) => todo!(),
