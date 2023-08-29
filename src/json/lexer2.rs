@@ -471,7 +471,10 @@ impl JsonStreamLexer {
             ',' => {
                 if let Some(partial_token) = self.partial_tokens.pop() {
                     match partial_token {
-                        JsonPartialToken::Array => self.tokens.push_back(JsonToken::ArrayItemDelimiter(String::from(c))),
+                        JsonPartialToken::Array => {
+                            self.tokens.push_back(JsonToken::ArrayItemDelimiter(String::from(c)));
+                            self.partial_tokens.push(JsonPartialToken::Array);
+                        }
                         JsonPartialToken::Object => todo!(),
                         JsonPartialToken::PropertyName => panic!("malformed property"),
                         JsonPartialToken::PropertyValue => panic!("malformed property"),
