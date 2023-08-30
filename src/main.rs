@@ -47,6 +47,8 @@ fn new_lexer() {
 
     let mut is_first = true;
 
+    let mut parsed_raw = String::new();
+
     loop {
         match io::stdin().lock().read(&mut buffer) {
             Ok(0) => break,
@@ -66,19 +68,58 @@ fn new_lexer() {
                             }
                             print!("{}", token);
                             match token {
-                                lexer2::JsonToken::PropertyName { raw, name } => print!("({},{})", raw, name),
-                                lexer2::JsonToken::StringValue { raw, value } => print!("({},{})", raw, value),
-                                lexer2::JsonToken::IntegerValue { raw, value } => print!("({},{})", raw, value),
-                                lexer2::JsonToken::FloatValue { raw, value } => print!("({},{})", raw, value),
-                                lexer2::JsonToken::ObjectOpen(raw) => print!("({})", raw),
-                                lexer2::JsonToken::ObjectClose(raw) => print!("({})", raw),
-                                lexer2::JsonToken::ArrayOpen(raw) => print!("({})", raw),
-                                lexer2::JsonToken::ArrayClose(raw) => print!("({})", raw),
-                                lexer2::JsonToken::Whitespace(whitespace) => print!("({})", whitespace),
-                                lexer2::JsonToken::NewLine(_) => print!(""),
-                                lexer2::JsonToken::ArrayItemDelimiter(delimiter) => print!("({})", delimiter),
-                                lexer2::JsonToken::PropertyDelimiter(delimiter) => print!("({})", delimiter),
-                                lexer2::JsonToken::KeyValueDelimiter(delimiter) => print!("({})", delimiter),
+                                lexer2::JsonToken::PropertyName { raw, name } => {
+                                    parsed_raw.push_str(raw.as_str());
+                                    print!("({},{})", raw, name);
+                                }
+                                lexer2::JsonToken::StringValue { raw, value } => {
+                                    parsed_raw.push_str(raw.as_str());
+                                    print!("({},{})", raw, value);
+                                }
+                                lexer2::JsonToken::IntegerValue { raw, value } => {
+                                    parsed_raw.push_str(raw.as_str());
+                                    print!("({},{})", raw, value);
+                                }
+                                lexer2::JsonToken::FloatValue { raw, value } => {
+                                    parsed_raw.push_str(raw.as_str());
+                                    print!("({},{})", raw, value);
+                                }
+                                lexer2::JsonToken::ObjectOpen(raw) => {
+                                    parsed_raw.push_str(raw.as_str());
+                                    print!("({})", raw);
+                                }
+                                lexer2::JsonToken::ObjectClose(raw) => {
+                                    parsed_raw.push_str(raw.as_str());
+                                    print!("({})", raw);
+                                }
+                                lexer2::JsonToken::ArrayOpen(raw) => {
+                                    parsed_raw.push_str(raw.as_str());
+                                    print!("({})", raw);
+                                }
+                                lexer2::JsonToken::ArrayClose(raw) => {
+                                    parsed_raw.push_str(raw.as_str());
+                                    print!("({})", raw);
+                                }
+                                lexer2::JsonToken::Whitespace(whitespace) => {
+                                    parsed_raw.push_str(whitespace.as_str());
+                                    print!("({})", whitespace);
+                                }
+                                lexer2::JsonToken::NewLine(newline) => {
+                                    parsed_raw.push_str(newline.as_str());
+                                    print!("");
+                                }
+                                lexer2::JsonToken::ArrayItemDelimiter(delimiter) => {
+                                    parsed_raw.push_str(delimiter.as_str());
+                                    print!("({})", delimiter);
+                                }
+                                lexer2::JsonToken::PropertyDelimiter(delimiter) => {
+                                    parsed_raw.push_str(delimiter.as_str());
+                                    print!("({})", delimiter);
+                                }
+                                lexer2::JsonToken::KeyValueDelimiter(delimiter) => {
+                                    parsed_raw.push_str(delimiter.as_str());
+                                    print!("({})", delimiter);
+                                }
                             }
                         }
                     }
@@ -88,7 +129,7 @@ fn new_lexer() {
         }
     }
 
-    println!()
+    println!("\n\n{}", parsed_raw);
 }
 
 fn find() {
