@@ -2,81 +2,83 @@ use std::collections::VecDeque;
 
 use strum_macros::Display;
 
-#[derive(PartialEq)]
-enum StructType {
-    Object,
-    Array,
-}
-
-#[derive(PartialEq)]
-enum ReadMode {
-    String,
-    Number,
-    Whitespace,
-    None,
-}
-
 #[derive(Display, PartialEq)]
-pub enum JsonTokenType {
-    PropertyName,
-    StringValue,
-    NumberValue,
-    ObjectOpen,
-    ObjectClose,
-    ArrayOpen,
-    ArrayClose,
-    Whitespace,
-    NewLine,
-    PropertyDelimiter,
-    KeyValueDelimiter,
+pub enum JsonToken {
+    PropertyName { raw: String, name: String },
+    StringValue { raw: String, value: String },
+    IntegerValue { raw: String, value: isize },
+    FloatValue { raw: String, value: f64 },
+    ObjectOpen(String),
+    ObjectClose(String),
+    ArrayOpen(String),
+    ArrayClose(String),
+    Whitespace(String),
+    NewLine(String),
+    ArrayItemDelimiter(String),
+    PropertyDelimiter(String),
+    KeyValueDelimiter(String),
 }
 
-pub struct JsonStreamToken {
-    pub token_raw: String,
-    pub token_parsed: String,
-    pub token_type: JsonTokenType,
+pub enum JsonPartialToken {
+    Array,
+    Object,
+    PropertyName,
+    PropertyValue,
+    StringValue { raw: String, value: String },
+    Root,
+    NumberValue(String),
+    Whitespace(String),
 }
 
 pub enum JsonStreamStatus {
     None,
-    Token(JsonStreamToken),
-    Finish,
+    Token(JsonToken),
 }
 
 pub struct JsonStreamLexer {
-    struct_type_stack: Vec<StructType>,
-    property_name_toggle: bool,
-    read_mode: ReadMode,
-    raw_token_builder: String,
-    parsed_token_builder: String,
-    parsed_tokens: VecDeque<JsonStreamStatus>,
+    tokens: VecDeque<JsonToken>,
+    partial_tokens: Vec<JsonPartialToken>,
 }
 
 impl JsonStreamLexer {
     pub fn new() -> JsonStreamLexer {
+        let mut partial_tokens = Vec::new();
+        partial_tokens.push(JsonPartialToken::Root);
+
         JsonStreamLexer {
-            struct_type_stack: Vec::new(),
-            read_mode: ReadMode::None,
-            property_name_toggle: true,
-            raw_token_builder: String::new(),
-            parsed_token_builder: String::new(),
-            parsed_tokens: VecDeque::new(),
+            tokens: VecDeque::new(),
+            partial_tokens,
         }
     }
 
-    fn is_in_array(&self) -> bool {
-        match self.struct_type_stack.last() {
-            Some(struct_type) => match struct_type {
-                StructType::Object => false,
-                StructType::Array => true,
-            },
-            None => panic!("no opening body"),
+    pub fn close(&mut self) {
+        while let Some(partial_token) = self.partial_tokens.pop() {
+            match partial_token {
+                JsonPartialToken::Array => {}
+                JsonPartialToken::Object => {}
+                JsonPartialToken::PropertyName => {}
+                JsonPartialToken::PropertyValue => {}
+                JsonPartialToken::StringValue { raw, value } => self.tokens.push_back(JsonToken::StringValue { raw, value }),
+                JsonPartialToken::Root => {}
+                JsonPartialToken::NumberValue(raw_number) => {
+                    if raw_number.contains(".") {
+                        if let Ok(number) = raw_number.as_str().parse::<f64>() {
+                            self.tokens.push_back(JsonToken::FloatValue { raw: raw_number, value: number });
+                        }
+                    } else {
+                        if let Ok(number) = raw_number.as_str().parse::<isize>() {
+                            self.tokens.push_back(JsonToken::IntegerValue { raw: raw_number, value: number });
+                        }
+                    }
+                }
+                JsonPartialToken::Whitespace(whitespace) => self.tokens.push_back(JsonToken::Whitespace(whitespace)),
+            }
         }
     }
 
     pub fn pop_token(&mut self) -> JsonStreamStatus {
-        match self.parsed_tokens.pop_front() {
-            Some(status) => status,
+        match self.tokens.pop_front() {
+            Some(status) => JsonStreamStatus::Token(status),
             None => JsonStreamStatus::None,
         }
     }
@@ -84,370 +86,623 @@ impl JsonStreamLexer {
     pub fn push_char(&mut self, c: char) {
         match c {
             '{' => {
-                let object_open_token = JsonStreamToken {
-                    token_raw: String::from("{"),
-                    token_parsed: String::from("{"),
-                    token_type: JsonTokenType::ObjectOpen,
-                };
-
-                match self.read_mode {
-                    ReadMode::String => {
-                        self.raw_token_builder.push(c);
-                        self.parsed_token_builder.push(c);
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::Array => {
+                            self.tokens.push_back(JsonToken::ObjectOpen(String::from(c)));
+                            self.partial_tokens.push(JsonPartialToken::Array);
+                            self.partial_tokens.push(JsonPartialToken::Object);
+                        }
+                        JsonPartialToken::Object => todo!(),
+                        JsonPartialToken::PropertyName => todo!(),
+                        JsonPartialToken::PropertyValue => {
+                            self.tokens.push_back(JsonToken::ObjectOpen(String::from(c)));
+                            self.partial_tokens.push(JsonPartialToken::Object);
+                        }
+                        JsonPartialToken::StringValue { mut raw, mut value } => {
+                            raw.push(c);
+                            value.push(c);
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, value });
+                        }
+                        JsonPartialToken::Root => {
+                            self.tokens.push_back(JsonToken::ObjectOpen(String::from(c)));
+                            self.partial_tokens.push(JsonPartialToken::Root);
+                            self.partial_tokens.push(JsonPartialToken::Object);
+                            self.partial_tokens.push(JsonPartialToken::PropertyName);
+                        }
+                        JsonPartialToken::NumberValue(_) => todo!(),
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                            self.tokens.push_back(JsonToken::ObjectOpen(String::from(c)));
+                            self.partial_tokens.push(JsonPartialToken::Object);
+                            self.partial_tokens.push(JsonPartialToken::PropertyName);
+                        }
                     }
-                    ReadMode::Number => panic!("unexpected character when reading a number"),
-                    ReadMode::Whitespace => {
-                        self.struct_type_stack.push(StructType::Object);
-
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type: JsonTokenType::Whitespace,
-                        }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(object_open_token));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
-
-                        self.property_name_toggle = true;
-                    }
-                    ReadMode::None => {
-                        self.struct_type_stack.push(StructType::Object);
-
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(object_open_token));
-
-                        self.property_name_toggle = true;
-                    }
+                } else {
+                    todo!();
                 }
             }
             '}' => {
-                let object_close_token = JsonStreamToken {
-                    token_raw: String::from("}"),
-                    token_parsed: String::from("}"),
-                    token_type: JsonTokenType::ObjectClose,
-                };
-
-                match self.read_mode {
-                    ReadMode::String => {
-                        self.raw_token_builder.push(c);
-                        self.parsed_token_builder.push(c);
-                    }
-                    ReadMode::Number => {
-                        if self.struct_type_stack.pop().unwrap_or_else(|| panic!("stack ended unexpectedly")) != StructType::Object {
-                            panic!("expected to close an object but closed an array");
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::Array => todo!(),
+                        JsonPartialToken::Object => self.tokens.push_back(JsonToken::ObjectClose(String::from(c))),
+                        JsonPartialToken::PropertyName => todo!(),
+                        JsonPartialToken::PropertyValue => self.tokens.push_back(JsonToken::ObjectClose(String::from(c))),
+                        JsonPartialToken::StringValue { mut raw, mut value } => {
+                            raw.push(c);
+                            value.push(c);
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, value });
                         }
+                        JsonPartialToken::Root => todo!(),
+                        JsonPartialToken::NumberValue(raw_number) => {
+                            if raw_number.contains(".") {
+                                if let Ok(number) = raw_number.as_str().parse::<f64>() {
+                                    self.tokens.push_back(JsonToken::FloatValue { raw: raw_number, value: number });
+                                }
+                            } else {
+                                if let Ok(number) = raw_number.as_str().parse::<isize>() {
+                                    self.tokens.push_back(JsonToken::IntegerValue { raw: raw_number, value: number });
+                                }
+                            }
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type: JsonTokenType::NumberValue,
-                        }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(object_close_token));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
-                    }
-                    ReadMode::Whitespace => {
-                        if self.struct_type_stack.pop().unwrap_or_else(|| panic!("stack ended unexpectedly")) != StructType::Object {
-                            panic!("expected to close an object but closed an array");
+                            self.tokens.push_back(JsonToken::ArrayClose(String::from(c)));
+
+                            if let Some(partial_token) = self.partial_tokens.pop() {
+                                match partial_token {
+                                    JsonPartialToken::Object => {}
+                                    _ => todo!(),
+                                }
+                            }
                         }
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                            self.tokens.push_back(JsonToken::ObjectClose(String::from(c)));
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type: JsonTokenType::Whitespace,
-                        }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(object_close_token));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
-                    }
-                    ReadMode::None => {
-                        if self.struct_type_stack.pop().unwrap_or_else(|| panic!("stack ended unexpectedly")) != StructType::Object {
-                            panic!("expected to close an object but closed an array");
+                            if let Some(partial_token) = self.partial_tokens.pop() {
+                                match partial_token {
+                                    JsonPartialToken::Object => {}
+                                    JsonPartialToken::PropertyValue => {
+                                        if let Some(partial_token) = self.partial_tokens.pop() {
+                                            match partial_token {
+                                                JsonPartialToken::Object => {}
+                                                _ => todo!(),
+                                            }
+                                        }
+                                    }
+                                    _ => todo!(),
+                                }
+                            }
                         }
-
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(object_close_token));
                     }
+                } else {
+                    todo!();
                 }
             }
             '[' => {
-                let array_open_token = JsonStreamToken {
-                    token_raw: String::from("["),
-                    token_parsed: String::from("["),
-                    token_type: JsonTokenType::ArrayOpen,
-                };
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::Array => {
+                            self.tokens.push_back(JsonToken::ArrayOpen(String::from(c)));
+                            self.partial_tokens.push(JsonPartialToken::Array);
+                            self.partial_tokens.push(JsonPartialToken::Array);
+                        }
+                        JsonPartialToken::Object => todo!(),
+                        JsonPartialToken::PropertyName => todo!(),
+                        JsonPartialToken::PropertyValue => {
+                            self.tokens.push_back(JsonToken::ArrayOpen(String::from(c)));
+                            self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                            self.partial_tokens.push(JsonPartialToken::Array);
+                        }
+                        JsonPartialToken::StringValue { mut raw, mut value } => {
+                            raw.push(c);
+                            value.push(c);
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, value });
+                        }
+                        JsonPartialToken::Root => {
+                            self.tokens.push_back(JsonToken::ArrayOpen(String::from(c)));
+                            self.partial_tokens.push(JsonPartialToken::Root);
+                            self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                        }
+                        JsonPartialToken::NumberValue(_) => todo!(),
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            self.tokens.push_back(JsonToken::Whitespace(whitespace));
 
-                match self.read_mode {
-                    ReadMode::String => {
-                        self.raw_token_builder.push(c);
-                        self.parsed_token_builder.push(c);
+                            if let Some(partial_token) = self.partial_tokens.pop() {
+                                match partial_token {
+                                    JsonPartialToken::Array => {
+                                        self.tokens.push_back(JsonToken::ArrayOpen(String::from(c)));
+                                        self.partial_tokens.push(JsonPartialToken::Array);
+                                        self.partial_tokens.push(JsonPartialToken::Array);
+                                    }
+                                    JsonPartialToken::Object => todo!(),
+                                    JsonPartialToken::PropertyName => todo!(),
+                                    JsonPartialToken::PropertyValue => {
+                                        self.tokens.push_back(JsonToken::ArrayOpen(String::from(c)));
+                                        self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                                        self.partial_tokens.push(JsonPartialToken::Array);
+                                    }
+                                    JsonPartialToken::StringValue { raw: _, value: _ } => todo!(),
+                                    JsonPartialToken::Root => {
+                                        self.tokens.push_back(JsonToken::ArrayOpen(String::from(c)));
+                                        self.partial_tokens.push(JsonPartialToken::Root);
+                                        self.partial_tokens.push(JsonPartialToken::Array);
+                                    }
+                                    JsonPartialToken::NumberValue(_) => todo!(),
+                                    JsonPartialToken::Whitespace(_) => todo!(),
+                                }
+                            } else {
+                                todo!();
+                            }
+                        }
                     }
-                    ReadMode::Number => panic!("unexpected character when reading a number"),
-                    ReadMode::Whitespace => {
-                        self.struct_type_stack.push(StructType::Array);
-
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type: JsonTokenType::Whitespace,
-                        }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(array_open_token));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
-                    }
-                    ReadMode::None => {
-                        self.struct_type_stack.push(StructType::Array);
-
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(array_open_token));
-                    }
+                } else {
+                    todo!();
                 }
             }
             ']' => {
-                let array_close_token = JsonStreamToken {
-                    token_raw: String::from("]"),
-                    token_parsed: String::from("]"),
-                    token_type: JsonTokenType::ArrayClose,
-                };
-
-                match self.read_mode {
-                    ReadMode::String => {
-                        self.raw_token_builder.push(c);
-                        self.parsed_token_builder.push(c);
-                    }
-                    ReadMode::Number => {
-                        if self.struct_type_stack.pop().unwrap_or_else(|| panic!("stack ended unexpectedly")) != StructType::Array {
-                            panic!("expected to close an array but closed an object");
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::Array => self.tokens.push_back(JsonToken::ArrayClose(String::from(c))),
+                        JsonPartialToken::Object => todo!(),
+                        JsonPartialToken::PropertyName => todo!(),
+                        JsonPartialToken::PropertyValue => todo!(),
+                        JsonPartialToken::StringValue { mut raw, mut value } => {
+                            raw.push(c);
+                            value.push(c);
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, value });
                         }
+                        JsonPartialToken::Root => todo!(),
+                        JsonPartialToken::NumberValue(raw_number) => {
+                            if raw_number.contains(".") {
+                                if let Ok(number) = raw_number.as_str().parse::<f64>() {
+                                    self.tokens.push_back(JsonToken::FloatValue { raw: raw_number, value: number });
+                                }
+                            } else {
+                                if let Ok(number) = raw_number.as_str().parse::<isize>() {
+                                    self.tokens.push_back(JsonToken::IntegerValue { raw: raw_number, value: number });
+                                }
+                            }
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type: JsonTokenType::NumberValue,
-                        }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(array_close_token));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
-                    }
-                    ReadMode::Whitespace => {
-                        if self.struct_type_stack.pop().unwrap_or_else(|| panic!("stack ended unexpectedly")) != StructType::Array {
-                            panic!("expected to close an array but closed an object");
+                            self.tokens.push_back(JsonToken::ArrayClose(String::from(c)));
+
+                            if let Some(partial_token) = self.partial_tokens.pop() {
+                                match partial_token {
+                                    JsonPartialToken::Array => {}
+                                    _ => todo!(),
+                                }
+                            }
                         }
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                            self.tokens.push_back(JsonToken::ArrayClose(String::from(c)));
 
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type: JsonTokenType::Whitespace,
-                        }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(array_close_token));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
-                    }
-                    ReadMode::None => {
-                        if self.struct_type_stack.pop().unwrap_or_else(|| panic!("stack ended unexpectedly")) != StructType::Array {
-                            panic!("expected to close an array but closed an object");
+                            if let Some(partial_token) = self.partial_tokens.pop() {
+                                match partial_token {
+                                    JsonPartialToken::Array => {}
+                                    _ => todo!(),
+                                }
+                            }
                         }
-
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(array_close_token));
                     }
+                } else {
+                    todo!();
                 }
             }
             '"' => {
-                if self.read_mode == ReadMode::Whitespace {
-                    self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                        token_raw: self.raw_token_builder.clone(),
-                        token_parsed: self.parsed_token_builder.clone(),
-                        token_type: JsonTokenType::Whitespace,
-                    }));
-                    self.raw_token_builder.clear();
-                    self.parsed_token_builder.clear();
-                }
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::Array => {
+                            self.partial_tokens.push(JsonPartialToken::Array);
+                            self.partial_tokens.push(JsonPartialToken::StringValue {
+                                raw: String::from(c),
+                                value: String::new(),
+                            });
+                        }
+                        JsonPartialToken::Object => todo!(),
+                        JsonPartialToken::PropertyName => {
+                            self.partial_tokens.push(JsonPartialToken::PropertyName);
+                            self.partial_tokens.push(JsonPartialToken::StringValue {
+                                raw: String::from(c),
+                                value: String::new(),
+                            });
+                        }
+                        JsonPartialToken::PropertyValue => {
+                            self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                            self.partial_tokens.push(JsonPartialToken::StringValue {
+                                raw: String::from(c),
+                                value: String::new(),
+                            });
+                        }
+                        JsonPartialToken::StringValue { mut raw, value } => {
+                            raw.push(c);
+                            if let Some(partial_token) = self.partial_tokens.pop() {
+                                match partial_token {
+                                    JsonPartialToken::Array => {
+                                        self.tokens.push_back(JsonToken::StringValue { raw, value });
+                                        self.partial_tokens.push(JsonPartialToken::Array);
+                                    }
+                                    JsonPartialToken::Object => {
+                                        self.tokens.push_back(JsonToken::PropertyName { raw, name: value });
+                                        self.partial_tokens.push(JsonPartialToken::Object);
+                                        self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                                    }
+                                    JsonPartialToken::PropertyName => {
+                                        self.tokens.push_back(JsonToken::PropertyName { raw, name: value });
+                                        self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                                    }
+                                    JsonPartialToken::PropertyValue => {
+                                        self.tokens.push_back(JsonToken::StringValue { raw, value });
+                                    }
+                                    JsonPartialToken::StringValue { raw: _, value: _ } => todo!(),
+                                    JsonPartialToken::Root => todo!(),
+                                    JsonPartialToken::NumberValue(_) => todo!(),
+                                    JsonPartialToken::Whitespace(_) => todo!(),
+                                }
+                            } else {
+                                todo!();
+                            }
+                        }
+                        JsonPartialToken::Root => todo!(),
+                        JsonPartialToken::NumberValue(_) => todo!(),
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            self.tokens.push_back(JsonToken::Whitespace(whitespace));
 
-                let array_toggle = self.is_in_array();
-
-                self.raw_token_builder.push('"');
-
-                match self.read_mode {
-                    ReadMode::String => {
-                        let token_type = if self.property_name_toggle && !array_toggle {
-                            JsonTokenType::PropertyName
-                        } else {
-                            JsonTokenType::StringValue
-                        };
-
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type,
-                        }));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
-
-                        self.read_mode = ReadMode::None;
+                            if let Some(partial_token) = self.partial_tokens.pop() {
+                                match partial_token {
+                                    JsonPartialToken::Array => {
+                                        self.partial_tokens.push(JsonPartialToken::Array);
+                                        self.partial_tokens.push(JsonPartialToken::StringValue {
+                                            raw: String::from(c),
+                                            value: String::new(),
+                                        });
+                                    }
+                                    JsonPartialToken::Object => {
+                                        self.partial_tokens.push(JsonPartialToken::Object);
+                                        self.partial_tokens.push(JsonPartialToken::StringValue {
+                                            raw: String::from(c),
+                                            value: String::new(),
+                                        });
+                                    }
+                                    JsonPartialToken::PropertyName => {
+                                        self.partial_tokens.push(JsonPartialToken::PropertyName);
+                                        self.partial_tokens.push(JsonPartialToken::StringValue {
+                                            raw: String::from(c),
+                                            value: String::new(),
+                                        });
+                                    }
+                                    JsonPartialToken::PropertyValue => {
+                                        self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                                        self.partial_tokens.push(JsonPartialToken::StringValue {
+                                            raw: String::from(c),
+                                            value: String::new(),
+                                        });
+                                    }
+                                    JsonPartialToken::StringValue { raw: _, value: _ } => todo!(),
+                                    JsonPartialToken::Root => todo!(),
+                                    JsonPartialToken::NumberValue(_) => todo!(),
+                                    JsonPartialToken::Whitespace(_) => todo!(),
+                                }
+                            } else {
+                                todo!();
+                            }
+                        }
                     }
-                    ReadMode::Number => {
-                        panic!("malformed JSON, reading a number didn't expect a \"")
-                    }
-                    _ => {
-                        self.read_mode = ReadMode::String;
-                    }
-                }
-            }
-            '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
-                match self.read_mode {
-                    ReadMode::Whitespace => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type: JsonTokenType::Whitespace,
-                        }));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
-
-                        self.read_mode = ReadMode::Number
-                    }
-                    ReadMode::None => self.read_mode = ReadMode::Number,
-                    _ => {}
-                }
-
-                self.raw_token_builder.push(c);
-                self.parsed_token_builder.push(c);
-            }
-            ',' => {
-                let delimiter_token = JsonStreamToken {
-                    token_raw: String::from(","),
-                    token_parsed: String::from(","),
-                    token_type: JsonTokenType::PropertyDelimiter,
-                };
-
-                match self.read_mode {
-                    ReadMode::String => {
-                        self.raw_token_builder.push(c);
-                        self.parsed_token_builder.push(c);
-                    }
-                    ReadMode::Number => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type: JsonTokenType::NumberValue,
-                        }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(delimiter_token));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
-
-                        self.read_mode = ReadMode::None;
-
-                        self.property_name_toggle = match self.struct_type_stack.last() {
-                            Some(struct_type) => match struct_type {
-                                StructType::Object => true,
-                                StructType::Array => false,
-                            },
-                            None => panic!("no opening body"),
-                        };
-                    }
-                    ReadMode::Whitespace => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type: JsonTokenType::Whitespace,
-                        }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(delimiter_token));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
-
-                        self.read_mode = ReadMode::None;
-
-                        self.property_name_toggle = match self.struct_type_stack.last() {
-                            Some(struct_type) => match struct_type {
-                                StructType::Object => true,
-                                StructType::Array => false,
-                            },
-                            None => panic!("no opening body"),
-                        };
-                    }
-                    ReadMode::None => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(delimiter_token));
-
-                        self.property_name_toggle = match self.struct_type_stack.last() {
-                            Some(struct_type) => match struct_type {
-                                StructType::Object => true,
-                                StructType::Array => false,
-                            },
-                            None => panic!("no opening body"),
-                        };
-                    }
+                } else {
+                    todo!();
                 }
             }
             ' ' | '\t' => {
-                match self.read_mode {
-                    ReadMode::Number => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type: JsonTokenType::NumberValue,
-                        }));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::Array => {
+                            self.partial_tokens.push(JsonPartialToken::Array);
+                            self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
+                        }
+                        JsonPartialToken::Object => {
+                            self.partial_tokens.push(JsonPartialToken::Object);
+                            self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
+                        }
+                        JsonPartialToken::PropertyName => {
+                            self.partial_tokens.push(JsonPartialToken::PropertyName);
+                            self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
+                        }
+                        JsonPartialToken::PropertyValue => {
+                            self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                            self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
+                        }
+                        JsonPartialToken::StringValue { mut raw, mut value } => {
+                            raw.push(c);
+                            value.push(c);
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, value });
+                        }
+                        JsonPartialToken::Root => {
+                            self.partial_tokens.push(JsonPartialToken::Root);
+                            self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
+                        }
+                        JsonPartialToken::NumberValue(raw_number) => {
+                            if raw_number.contains(".") {
+                                if let Ok(number) = raw_number.as_str().parse::<f64>() {
+                                    self.tokens.push_back(JsonToken::FloatValue { raw: raw_number, value: number });
+                                }
+                            } else {
+                                if let Ok(number) = raw_number.as_str().parse::<isize>() {
+                                    self.tokens.push_back(JsonToken::IntegerValue { raw: raw_number, value: number });
+                                }
+                            }
 
-                        self.read_mode = ReadMode::Whitespace;
+                            if let Some(partial_token) = self.partial_tokens.pop() {
+                                match partial_token {
+                                    JsonPartialToken::Array => {
+                                        self.partial_tokens.push(JsonPartialToken::Array);
+                                        self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
+                                    }
+                                    JsonPartialToken::Object => {
+                                        self.partial_tokens.push(JsonPartialToken::Object);
+                                        self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
+                                    }
+                                    JsonPartialToken::PropertyName => todo!(),
+                                    JsonPartialToken::PropertyValue => {
+                                        self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                                        self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
+                                    }
+                                    JsonPartialToken::StringValue { raw: _, value: _ } => todo!(),
+                                    JsonPartialToken::Root => todo!(),
+                                    JsonPartialToken::NumberValue(_) => todo!(),
+                                    JsonPartialToken::Whitespace(_) => todo!(),
+                                }
+                            } else {
+                                todo!();
+                            }
+                        }
+                        JsonPartialToken::Whitespace(mut whitespace) => {
+                            whitespace.push(c);
+                            self.partial_tokens.push(JsonPartialToken::Whitespace(whitespace));
+                        }
                     }
-                    ReadMode::None => {
-                        self.read_mode = ReadMode::Whitespace;
-                    }
-                    _ => {}
+                } else {
+                    todo!();
                 }
-
-                self.raw_token_builder.push(c);
-                self.parsed_token_builder.push(c);
             }
             ':' => {
-                self.property_name_toggle = !self.property_name_toggle;
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::Array => todo!(),
+                        JsonPartialToken::Object => todo!(),
+                        JsonPartialToken::PropertyName => todo!(),
+                        JsonPartialToken::PropertyValue => {
+                            self.tokens.push_back(JsonToken::KeyValueDelimiter(String::from(c)));
+                            self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                        }
+                        JsonPartialToken::StringValue { mut raw, mut value } => {
+                            raw.push(c);
+                            value.push(c);
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, value });
+                        }
+                        JsonPartialToken::Root => todo!(),
+                        JsonPartialToken::NumberValue(_) => todo!(),
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            if let Some(partial_token) = self.partial_tokens.pop() {
+                                match partial_token {
+                                    JsonPartialToken::Array => todo!(),
+                                    JsonPartialToken::Object => todo!(),
+                                    JsonPartialToken::PropertyName => todo!(),
+                                    JsonPartialToken::PropertyValue => {
+                                        self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                                        self.tokens.push_back(JsonToken::KeyValueDelimiter(String::from(c)));
+                                        self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                                    }
+                                    JsonPartialToken::StringValue { raw: _, value: _ } => todo!(),
+                                    JsonPartialToken::Root => todo!(),
+                                    JsonPartialToken::NumberValue(_) => todo!(),
+                                    JsonPartialToken::Whitespace(_) => todo!(),
+                                }
+                            } else {
+                                todo!();
+                            }
+                        }
+                    }
+                } else {
+                    todo!();
+                }
+            }
+            ',' => {
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::Array => {
+                            self.tokens.push_back(JsonToken::ArrayItemDelimiter(String::from(c)));
+                            self.partial_tokens.push(JsonPartialToken::Array);
+                        }
+                        JsonPartialToken::Object => {
+                            self.tokens.push_back(JsonToken::PropertyDelimiter(String::from(c)));
+                            self.partial_tokens.push(JsonPartialToken::Object);
+                            self.partial_tokens.push(JsonPartialToken::PropertyName);
+                        }
+                        JsonPartialToken::PropertyName => panic!("malformed property"),
+                        JsonPartialToken::PropertyValue => self.tokens.push_back(JsonToken::PropertyDelimiter(String::from(c))),
+                        JsonPartialToken::StringValue { raw: _, value: _ } => panic!("malformed string"),
+                        JsonPartialToken::Root => todo!(),
+                        JsonPartialToken::NumberValue(raw_number) => {
+                            if raw_number.contains(".") {
+                                if let Ok(number) = raw_number.as_str().parse::<f64>() {
+                                    self.tokens.push_back(JsonToken::FloatValue { raw: raw_number, value: number });
+                                } else {
+                                    panic!("malformed number");
+                                }
+                            } else {
+                                if let Ok(number) = raw_number.as_str().parse::<isize>() {
+                                    self.tokens.push_back(JsonToken::IntegerValue { raw: raw_number, value: number });
+                                } else {
+                                    panic!("malformed number");
+                                }
+                            }
 
-                self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                    token_raw: String::from(":"),
-                    token_parsed: String::from(":"),
-                    token_type: JsonTokenType::KeyValueDelimiter,
-                }));
+                            if let Some(partial_token) = self.partial_tokens.pop() {
+                                match partial_token {
+                                    JsonPartialToken::Array => {
+                                        self.tokens.push_back(JsonToken::ArrayItemDelimiter(String::from(c)));
+                                        self.partial_tokens.push(JsonPartialToken::Array);
+                                    }
+                                    JsonPartialToken::Object => {
+                                        self.tokens.push_back(JsonToken::PropertyDelimiter(String::from(c)));
+                                        self.partial_tokens.push(JsonPartialToken::Object);
+                                    }
+                                    JsonPartialToken::PropertyName => {
+                                        self.tokens.push_back(JsonToken::PropertyDelimiter(String::from(c)));
+                                        self.partial_tokens.push(JsonPartialToken::PropertyName);
+                                    }
+                                    JsonPartialToken::PropertyValue => {
+                                        self.tokens.push_back(JsonToken::PropertyDelimiter(String::from(c)));
+                                        self.partial_tokens.push(JsonPartialToken::PropertyValue);
+                                    }
+                                    JsonPartialToken::StringValue { raw: _, value: _ } => todo!(),
+                                    JsonPartialToken::Root => todo!(),
+                                    JsonPartialToken::NumberValue(_) => todo!(),
+                                    JsonPartialToken::Whitespace(_) => todo!(),
+                                }
+                            } else {
+                                todo!();
+                            }
+                        }
+                        JsonPartialToken::Whitespace(_) => todo!(),
+                    }
+                } else {
+                    todo!();
+                }
             }
             '\n' => {
-                let newline_token = JsonStreamToken {
-                    token_raw: String::from("\n"),
-                    token_parsed: String::from("\n"),
-                    token_type: JsonTokenType::NewLine,
-                };
-
-                match self.read_mode {
-                    ReadMode::String => panic!("unexpected end of string"),
-                    ReadMode::Number => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type: JsonTokenType::NumberValue,
-                        }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(newline_token));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
-
-                        self.read_mode = ReadMode::None;
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::Array => self.partial_tokens.push(JsonPartialToken::Array),
+                        JsonPartialToken::Object => self.partial_tokens.push(JsonPartialToken::Object),
+                        JsonPartialToken::PropertyName => self.partial_tokens.push(JsonPartialToken::PropertyName),
+                        JsonPartialToken::PropertyValue => self.partial_tokens.push(JsonPartialToken::PropertyValue),
+                        JsonPartialToken::StringValue { raw: _, value: _ } => todo!(),
+                        JsonPartialToken::Root => self.partial_tokens.push(JsonPartialToken::Root),
+                        JsonPartialToken::NumberValue(raw_number) => {
+                            if raw_number.contains(".") {
+                                if let Ok(number) = raw_number.as_str().parse::<f64>() {
+                                    self.tokens.push_back(JsonToken::FloatValue { raw: raw_number, value: number });
+                                } else {
+                                    panic!("malformed number");
+                                }
+                            } else {
+                                if let Ok(number) = raw_number.as_str().parse::<isize>() {
+                                    self.tokens.push_back(JsonToken::IntegerValue { raw: raw_number, value: number });
+                                } else {
+                                    panic!("malformed number");
+                                }
+                            }
+                        }
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                        }
                     }
-                    ReadMode::Whitespace => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(JsonStreamToken {
-                            token_raw: self.raw_token_builder.clone(),
-                            token_parsed: self.parsed_token_builder.clone(),
-                            token_type: JsonTokenType::Whitespace,
-                        }));
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(newline_token));
-                        self.raw_token_builder.clear();
-                        self.parsed_token_builder.clear();
+                } else {
+                    todo!();
+                }
 
-                        self.read_mode = ReadMode::None;
+                self.tokens.push_back(JsonToken::NewLine(String::from(c)));
+            }
+            '.' => {
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::Array => todo!(),
+                        JsonPartialToken::Object => todo!(),
+                        JsonPartialToken::PropertyName => todo!(),
+                        JsonPartialToken::PropertyValue => todo!(),
+                        JsonPartialToken::StringValue { mut raw, mut value } => {
+                            raw.push(c);
+                            value.push(c);
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, value });
+                        }
+                        JsonPartialToken::Root => todo!(),
+                        JsonPartialToken::NumberValue(mut number) => {
+                            if number.contains(".") {
+                                panic!("malformed number");
+                            } else {
+                                number.push(c);
+                                self.partial_tokens.push(JsonPartialToken::NumberValue(number));
+                            }
+                        }
+                        JsonPartialToken::Whitespace(_) => todo!(),
                     }
-                    ReadMode::None => {
-                        self.parsed_tokens.push_back(JsonStreamStatus::Token(newline_token));
+                } else {
+                    todo!();
+                }
+            }
+            '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => {
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::Array => {
+                            self.partial_tokens.push(JsonPartialToken::Array);
+                            self.partial_tokens.push(JsonPartialToken::NumberValue(String::from(c)));
+                        }
+                        JsonPartialToken::Object => todo!(),
+                        JsonPartialToken::PropertyName => todo!(),
+                        JsonPartialToken::PropertyValue => self.partial_tokens.push(JsonPartialToken::NumberValue(String::from(c))),
+                        JsonPartialToken::StringValue { mut raw, mut value } => {
+                            raw.push(c);
+                            value.push(c);
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, value });
+                        }
+                        JsonPartialToken::Root => todo!(),
+                        JsonPartialToken::NumberValue(mut number) => {
+                            number.push(c);
+                            self.partial_tokens.push(JsonPartialToken::NumberValue(number));
+                        }
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            if let Some(partial_token) = self.partial_tokens.pop() {
+                                match partial_token {
+                                    JsonPartialToken::Array => {
+                                        self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                                        self.partial_tokens.push(JsonPartialToken::Array);
+                                        self.partial_tokens.push(JsonPartialToken::NumberValue(String::from(c)));
+                                    }
+                                    JsonPartialToken::Object => todo!(),
+                                    JsonPartialToken::PropertyName => todo!(),
+                                    JsonPartialToken::PropertyValue => {
+                                        self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                                        self.partial_tokens.push(JsonPartialToken::NumberValue(String::from(c)));
+                                    }
+                                    JsonPartialToken::StringValue { raw: _, value: _ } => todo!(),
+                                    JsonPartialToken::Root => todo!(),
+                                    JsonPartialToken::NumberValue(_) => todo!(),
+                                    JsonPartialToken::Whitespace(_) => todo!(),
+                                }
+                            } else {
+                                todo!();
+                            }
+                        }
                     }
+                } else {
+                    todo!();
                 }
             }
             _ => {
-                self.raw_token_builder.push(c);
-                self.parsed_token_builder.push(c);
+                if let Some(partial_token) = self.partial_tokens.pop() {
+                    match partial_token {
+                        JsonPartialToken::Array => todo!(),
+                        JsonPartialToken::Object => todo!(),
+                        JsonPartialToken::PropertyName => todo!("{}", c),
+                        JsonPartialToken::PropertyValue => todo!("{}", c),
+                        JsonPartialToken::StringValue { mut raw, mut value } => {
+                            raw.push(c);
+                            value.push(c);
+                            self.partial_tokens.push(JsonPartialToken::StringValue { raw, value });
+                        }
+                        JsonPartialToken::Root => todo!(),
+                        JsonPartialToken::NumberValue(_) => todo!(),
+                        JsonPartialToken::Whitespace(_) => todo!("{}", c),
+                    }
+                } else {
+                    todo!();
+                }
             }
+        }
+
+        if self.partial_tokens.len() == 0 {
+            println!("empty '{}'", c);
         }
     }
 }

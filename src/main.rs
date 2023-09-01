@@ -2,15 +2,9 @@ mod json;
 
 use clap::Parser;
 use core::fmt;
-use json::{
-    lexer::{JsonStreamLexer, JsonStreamStatus, JsonStreamToken, JsonTokenType},
-    lexer2,
-};
-use std::{
-    collections::LinkedList,
-    io::{self, BufRead, Read},
-};
-use strum_macros::Display;
+use std::io::{self, Read};
+
+use json::lexer::{JsonStreamLexer, JsonStreamStatus, JsonToken};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -23,25 +17,19 @@ struct SSEditArgs {
 }
 
 fn main() -> io::Result<()> {
-    let read = false;
-    let finder = false;
     let searcher = false;
 
-    if read {
-        analyse();
-    } else if finder {
-        find();
-    } else if searcher {
+    if searcher {
         search();
     } else {
-        new_lexer();
+        lexer();
     }
 
     Ok(())
 }
 
-fn new_lexer() {
-    let mut json_lexer = lexer2::JsonStreamLexer::new();
+fn lexer() {
+    let mut json_lexer = JsonStreamLexer::new();
 
     let mut buffer = [0; 1];
 
@@ -57,216 +45,93 @@ fn new_lexer() {
 
                 json_lexer.push_char(c);
 
-                loop {
-                    match json_lexer.pop_token() {
-                        lexer2::JsonStreamStatus::None => break,
-                        lexer2::JsonStreamStatus::Token(token) => {
-                            if is_first {
-                                is_first = false;
-                            } else {
-                                print!(" -> ");
-                            }
-                            print!("{}", token);
-                            match token {
-                                lexer2::JsonToken::PropertyName { raw, name } => {
-                                    parsed_raw.push_str(raw.as_str());
-                                    print!("({},{})", raw, name);
-                                }
-                                lexer2::JsonToken::StringValue { raw, value } => {
-                                    parsed_raw.push_str(raw.as_str());
-                                    print!("({},{})", raw, value);
-                                }
-                                lexer2::JsonToken::IntegerValue { raw, value } => {
-                                    parsed_raw.push_str(raw.as_str());
-                                    print!("({},{})", raw, value);
-                                }
-                                lexer2::JsonToken::FloatValue { raw, value } => {
-                                    parsed_raw.push_str(raw.as_str());
-                                    print!("({},{})", raw, value);
-                                }
-                                lexer2::JsonToken::ObjectOpen(raw) => {
-                                    parsed_raw.push_str(raw.as_str());
-                                    print!("({})", raw);
-                                }
-                                lexer2::JsonToken::ObjectClose(raw) => {
-                                    parsed_raw.push_str(raw.as_str());
-                                    print!("({})", raw);
-                                }
-                                lexer2::JsonToken::ArrayOpen(raw) => {
-                                    parsed_raw.push_str(raw.as_str());
-                                    print!("({})", raw);
-                                }
-                                lexer2::JsonToken::ArrayClose(raw) => {
-                                    parsed_raw.push_str(raw.as_str());
-                                    print!("({})", raw);
-                                }
-                                lexer2::JsonToken::Whitespace(whitespace) => {
-                                    parsed_raw.push_str(whitespace.as_str());
-                                    print!("({})", whitespace);
-                                }
-                                lexer2::JsonToken::NewLine(newline) => {
-                                    parsed_raw.push_str(newline.as_str());
-                                    print!("");
-                                }
-                                lexer2::JsonToken::ArrayItemDelimiter(delimiter) => {
-                                    parsed_raw.push_str(delimiter.as_str());
-                                    print!("({})", delimiter);
-                                }
-                                lexer2::JsonToken::PropertyDelimiter(delimiter) => {
-                                    parsed_raw.push_str(delimiter.as_str());
-                                    print!("({})", delimiter);
-                                }
-                                lexer2::JsonToken::KeyValueDelimiter(delimiter) => {
-                                    parsed_raw.push_str(delimiter.as_str());
-                                    print!("({})", delimiter);
-                                }
-                            }
-                        }
-                    }
-                }
+                is_first = write_tokens(is_first, &mut json_lexer, &mut parsed_raw);
             }
             Err(_) => todo!(),
         }
     }
 
+    json_lexer.close();
+
     println!("\n\n{}", parsed_raw);
 }
 
-fn find() {
-    let args = SSEditArgs::parse();
-
-    let search_path = if args.select.is_empty() {
-        eprintln!("no select command provided");
-        return;
-    } else {
-        args.select.as_str()
-    };
-
-    let mut json_getter = JsonSelect::new(search_path);
-
-    let mut json_lexer = JsonStreamLexer::new();
-
-    let mut capture_mode = false;
-    let mut captured_tokens = LinkedList::new();
-
-    let mut buffer = [0; 1];
+fn write_tokens(is_first: bool, json_lexer: &mut JsonStreamLexer, parsed_raw: &mut String) -> bool {
+    let mut is_first = is_first;
 
     loop {
-        match io::stdin().lock().read(&mut buffer) {
-            Ok(0) => break,
-            Ok(_) => {
-                let c = buffer[0] as char;
-
-                json_lexer.push_char(c);
-
-                loop {
-                    match json_getter.parse(json_lexer.pop_token()) {
-                        JsonStreamStatus::None => break,
-                        JsonStreamStatus::Token(token) => {
-                            capture_mode = true;
-                            captured_tokens.push_back(token);
-                        }
-                        JsonStreamStatus::Finish => {
-                            let mut starting = true;
-                            if capture_mode {
-                                for token in &captured_tokens {
-                                    if token.token_type != JsonTokenType::Whitespace {
-                                        // We need this check because whitespace is already included in the uncapture stream.
-                                        // This is hard to resolve because whitespace usually only ends once a new token has
-                                        // begun meaning you don't know it's unnecessary till it's already been passed as a token.
-                                        starting = false;
-                                    }
-
-                                    if !starting {
-                                        if args.replace.is_empty() {
-                                            print!("{}", token.token_parsed);
-                                        } else {
-                                            if token.token_type == JsonTokenType::NewLine || token.token_type == JsonTokenType::Whitespace {
-                                                print!("{}", token.token_raw);
-                                            } else if token.token_type == JsonTokenType::StringValue {
-                                                print!("\"{}\"", args.replace);
-                                                break;
-                                            } else {
-                                                print!("{}", args.replace);
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            capture_mode = false;
-                            break;
-                        }
-                    }
+        match json_lexer.pop_token() {
+            JsonStreamStatus::None => break,
+            JsonStreamStatus::Token(token) => {
+                if is_first {
+                    is_first = false;
+                } else {
+                    print!(" -> ");
                 }
-
-                if !capture_mode && !args.replace.is_empty() {
-                    print!("{}", c);
-                }
-            }
-            Err(err) => {
-                eprintln!("error reading from stdin: {}", err);
-                break;
+                print!("{}", token);
+                write_token(parsed_raw, token);
             }
         }
     }
+
+    is_first
 }
 
-fn analyse() {
-    let mut tokens: Vec<JsonStreamToken> = Vec::new();
-    let mut lines = io::stdin().lock().lines();
-
-    let mut json_lexer = JsonStreamLexer::new();
-
-    let mut eof = false;
-
-    while !eof {
-        match lines.next() {
-            Some(result) => {
-                let line = result.unwrap_or_else(|_| {
-                    eof = true;
-                    String::new()
-                });
-
-                for c in line.chars() {
-                    json_lexer.push_char(c);
-
-                    loop {
-                        match json_lexer.pop_token() {
-                            JsonStreamStatus::None => break,
-                            JsonStreamStatus::Token(token) => tokens.push(token),
-                            JsonStreamStatus::Finish => break,
-                        }
-                    }
-                }
-            }
-            None => break,
+fn write_token(parsed_raw: &mut String, token: JsonToken) {
+    match token {
+        JsonToken::PropertyName { raw, name } => {
+            parsed_raw.push_str(raw.as_str());
+            print!("({},{})", raw, name);
         }
-
-        json_lexer.push_char('\n');
-
-        loop {
-            match json_lexer.pop_token() {
-                JsonStreamStatus::None => break,
-                JsonStreamStatus::Token(token) => tokens.push(token),
-                JsonStreamStatus::Finish => break,
-            }
+        JsonToken::StringValue { raw, value } => {
+            parsed_raw.push_str(raw.as_str());
+            print!("({},{})", raw, value);
+        }
+        JsonToken::IntegerValue { raw, value } => {
+            parsed_raw.push_str(raw.as_str());
+            print!("({},{})", raw, value);
+        }
+        JsonToken::FloatValue { raw, value } => {
+            parsed_raw.push_str(raw.as_str());
+            print!("({},{})", raw, value);
+        }
+        JsonToken::ObjectOpen(raw) => {
+            parsed_raw.push_str(raw.as_str());
+            print!("({})", raw);
+        }
+        JsonToken::ObjectClose(raw) => {
+            parsed_raw.push_str(raw.as_str());
+            print!("({})", raw);
+        }
+        JsonToken::ArrayOpen(raw) => {
+            parsed_raw.push_str(raw.as_str());
+            print!("({})", raw);
+        }
+        JsonToken::ArrayClose(raw) => {
+            parsed_raw.push_str(raw.as_str());
+            print!("({})", raw);
+        }
+        JsonToken::Whitespace(whitespace) => {
+            parsed_raw.push_str(whitespace.as_str());
+            print!("({})", whitespace);
+        }
+        JsonToken::NewLine(newline) => {
+            parsed_raw.push_str(newline.as_str());
+            print!("");
+        }
+        JsonToken::ArrayItemDelimiter(delimiter) => {
+            parsed_raw.push_str(delimiter.as_str());
+            print!("({})", delimiter);
+        }
+        JsonToken::PropertyDelimiter(delimiter) => {
+            parsed_raw.push_str(delimiter.as_str());
+            print!("({})", delimiter);
+        }
+        JsonToken::KeyValueDelimiter(delimiter) => {
+            parsed_raw.push_str(delimiter.as_str());
+            print!("({})", delimiter);
         }
     }
-
-    let mut raw_input = String::new();
-
-    for token in &tokens {
-        match token.token_type {
-            JsonTokenType::NewLine => println!("{}", token.token_type),
-            _ => println!("{}: '{}'", token.token_type, token.token_parsed),
-        }
-
-        raw_input.push_str(token.token_raw.as_str());
-    }
-
-    println!("{}", raw_input);
 }
 
 fn search() {
@@ -295,211 +160,6 @@ fn search() {
         "Path '$[\"'batters'\"].batter[252][1:10][?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]' parsed as '{}'",
         JsonPath::from("$[\"'batters'\"].batter[252][1:10][?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]")
     );
-}
-
-#[derive(PartialEq)]
-enum JsonSelectParseMode {
-    Search,
-    Capture,
-    Finish,
-}
-
-#[derive(Display)]
-enum JsonSelectComponent {
-    PropertyName(String),
-    ArrayIndex(isize),
-}
-
-struct JsonSelect {
-    path: LinkedList<JsonSelectComponent>,
-    current_token: JsonSelectComponent,
-    parse_mode: JsonSelectParseMode,
-    current_search_depth: isize,
-    current_capture_depth: isize,
-    current_index: isize,
-}
-
-impl JsonSelect {
-    fn new(path: &str) -> JsonSelect {
-        let mut path = process_path(path);
-        if let Some(starting_token) = path.pop_front() {
-            JsonSelect {
-                path: path,
-                current_token: starting_token,
-                parse_mode: JsonSelectParseMode::Search,
-                current_search_depth: -1,
-                current_capture_depth: 0,
-                current_index: -1,
-            }
-        } else {
-            panic!("path isn't supported")
-        }
-    }
-
-    fn parse(&mut self, stream: JsonStreamStatus) -> JsonStreamStatus {
-        match stream {
-            JsonStreamStatus::None => {}
-            JsonStreamStatus::Token(token) => {
-                if self.process_token(&token) {
-                    return JsonStreamStatus::Token(token);
-                } else if self.parse_mode == JsonSelectParseMode::Finish {
-                    return JsonStreamStatus::Finish;
-                }
-            }
-            JsonStreamStatus::Finish => return stream,
-        }
-
-        JsonStreamStatus::None
-    }
-
-    fn process_token(&mut self, token: &JsonStreamToken) -> bool {
-        match self.parse_mode {
-            JsonSelectParseMode::Search => {
-                match &self.current_token {
-                    JsonSelectComponent::PropertyName(name) => match token.token_type {
-                        JsonTokenType::PropertyName => {
-                            if token.token_parsed.eq(name) {
-                                if let Some(next_token) = self.path.pop_front() {
-                                    self.current_token = next_token;
-                                } else {
-                                    self.parse_mode = JsonSelectParseMode::Capture;
-                                }
-                            }
-                        }
-                        _ => {}
-                    },
-                    JsonSelectComponent::ArrayIndex(index) => {
-                        match token.token_type {
-                            JsonTokenType::ObjectOpen => self.current_search_depth += 1,
-                            JsonTokenType::ObjectClose => self.current_search_depth -= 1,
-                            JsonTokenType::ArrayOpen => {
-                                if self.current_search_depth == -1 {
-                                    self.current_index = 0;
-                                    self.current_search_depth = 0;
-                                } else {
-                                    self.current_search_depth += 1;
-                                }
-                            }
-                            JsonTokenType::ArrayClose => {
-                                if self.current_search_depth == 0 {
-                                    panic!("index not found");
-                                }
-                            }
-                            JsonTokenType::PropertyDelimiter => {
-                                if self.current_search_depth == 0 {
-                                    self.current_index += 1;
-                                }
-                            }
-                            _ => {}
-                        }
-
-                        if self.current_index == *index && self.current_search_depth == 0 {
-                            self.current_index = -1;
-                            self.current_search_depth = -1;
-
-                            if let Some(next_token) = self.path.pop_front() {
-                                self.current_token = next_token;
-                            } else {
-                                self.parse_mode = JsonSelectParseMode::Capture;
-                            }
-                        }
-                    }
-                }
-
-                false
-            }
-            JsonSelectParseMode::Capture => {
-                match token.token_type {
-                    JsonTokenType::ObjectOpen => self.current_capture_depth += 1,
-                    JsonTokenType::ObjectClose => {
-                        self.current_capture_depth -= 1;
-
-                        if self.current_capture_depth == 0 {
-                            self.parse_mode = JsonSelectParseMode::Finish;
-                        } else if self.current_capture_depth == -1 {
-                            self.parse_mode = JsonSelectParseMode::Finish;
-                            return false;
-                        }
-                    }
-                    JsonTokenType::ArrayOpen => self.current_capture_depth += 1,
-                    JsonTokenType::ArrayClose => {
-                        self.current_capture_depth -= 1;
-
-                        if self.current_capture_depth == 0 {
-                            self.parse_mode = JsonSelectParseMode::Finish;
-                        } else if self.current_capture_depth == -1 {
-                            self.parse_mode = JsonSelectParseMode::Finish;
-                            return false;
-                        }
-                    }
-                    JsonTokenType::KeyValueDelimiter => {
-                        if self.current_capture_depth == 0 {
-                            return false;
-                        }
-                    }
-                    JsonTokenType::PropertyDelimiter => {
-                        if self.current_capture_depth == 0 {
-                            self.parse_mode = JsonSelectParseMode::Finish;
-                            return false;
-                        }
-                    }
-                    JsonTokenType::StringValue | JsonTokenType::NumberValue => {
-                        if self.current_capture_depth == 0 {
-                            self.parse_mode = JsonSelectParseMode::Finish;
-                            return true;
-                        }
-                    }
-                    _ => {}
-                }
-
-                true
-            }
-            JsonSelectParseMode::Finish => false,
-        }
-    }
-}
-
-fn process_path(path: &str) -> LinkedList<JsonSelectComponent> {
-    let mut parsed_path = LinkedList::new();
-    let mut token_builder = String::new();
-
-    let mut parsing_array_index = false;
-
-    for c in path.chars() {
-        match c {
-            '.' => {
-                if token_builder.len() > 0 {
-                    parsed_path.push_back(JsonSelectComponent::PropertyName(token_builder.clone()));
-                    token_builder.clear();
-                }
-            }
-            '[' => {
-                parsed_path.push_back(JsonSelectComponent::PropertyName(token_builder.clone()));
-                token_builder.clear();
-
-                parsing_array_index = true;
-            }
-            ']' => {
-                if !parsing_array_index {
-                    panic!("unexpected array index close");
-                }
-
-                if let Ok(array_index) = token_builder.as_str().parse::<isize>() {
-                    parsed_path.push_back(JsonSelectComponent::ArrayIndex(array_index));
-                    token_builder.clear();
-                } else {
-                    panic!("array index couldn't be parsed to a number");
-                }
-            }
-            _ => token_builder.push(c),
-        }
-    }
-
-    if token_builder.len() > 0 {
-        parsed_path.push_back(JsonSelectComponent::PropertyName(token_builder.clone()));
-    }
-
-    parsed_path
 }
 
 enum JsonPathOperator {
