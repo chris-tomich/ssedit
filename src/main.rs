@@ -35,7 +35,7 @@ fn lexer() {
 
     let mut is_first = true;
 
-    let mut parsed_raw = String::new();
+    let mut tokenized_raw = String::new();
 
     loop {
         match io::stdin().lock().read(&mut buffer) {
@@ -45,7 +45,7 @@ fn lexer() {
 
                 json_lexer.push_char(c);
 
-                is_first = write_tokens(is_first, &mut json_lexer, &mut parsed_raw);
+                is_first = write_tokens(is_first, &mut json_lexer, &mut tokenized_raw);
             }
             Err(_) => todo!(),
         }
@@ -53,10 +53,10 @@ fn lexer() {
 
     json_lexer.close();
 
-    println!("\n\n{}", parsed_raw);
+    println!("\n\n{}", tokenized_raw);
 }
 
-fn write_tokens(is_first: bool, json_lexer: &mut JsonStreamLexer, parsed_raw: &mut String) -> bool {
+fn write_tokens(is_first: bool, json_lexer: &mut JsonStreamLexer, tokenized_raw: &mut String) -> bool {
     let mut is_first = is_first;
 
     loop {
@@ -69,7 +69,7 @@ fn write_tokens(is_first: bool, json_lexer: &mut JsonStreamLexer, parsed_raw: &m
                     print!(" -> ");
                 }
                 print!("{}", token);
-                write_token(parsed_raw, token);
+                write_token(tokenized_raw, token);
             }
         }
     }
@@ -77,87 +77,87 @@ fn write_tokens(is_first: bool, json_lexer: &mut JsonStreamLexer, parsed_raw: &m
     is_first
 }
 
-fn write_token(parsed_raw: &mut String, token: JsonToken) {
+fn write_token(tokenized_raw: &mut String, token: JsonToken) {
     match token {
         JsonToken::PropertyName { raw, name } => {
-            parsed_raw.push_str(raw.as_str());
+            tokenized_raw.push_str(raw.as_str());
             print!("({},{})", raw, name);
         }
         JsonToken::StringValue { raw, value } => {
-            parsed_raw.push_str(raw.as_str());
+            tokenized_raw.push_str(raw.as_str());
             print!("({},{})", raw, value);
         }
         JsonToken::IntegerValue { raw, value } => {
-            parsed_raw.push_str(raw.as_str());
+            tokenized_raw.push_str(raw.as_str());
             print!("({},{})", raw, value);
         }
         JsonToken::FloatValue { raw, value } => {
-            parsed_raw.push_str(raw.as_str());
+            tokenized_raw.push_str(raw.as_str());
             print!("({},{})", raw, value);
         }
         JsonToken::ObjectOpen(raw) => {
-            parsed_raw.push_str(raw.as_str());
+            tokenized_raw.push_str(raw.as_str());
             print!("({})", raw);
         }
         JsonToken::ObjectClose(raw) => {
-            parsed_raw.push_str(raw.as_str());
+            tokenized_raw.push_str(raw.as_str());
             print!("({})", raw);
         }
         JsonToken::ArrayOpen(raw) => {
-            parsed_raw.push_str(raw.as_str());
+            tokenized_raw.push_str(raw.as_str());
             print!("({})", raw);
         }
         JsonToken::ArrayClose(raw) => {
-            parsed_raw.push_str(raw.as_str());
+            tokenized_raw.push_str(raw.as_str());
             print!("({})", raw);
         }
         JsonToken::Whitespace(whitespace) => {
-            parsed_raw.push_str(whitespace.as_str());
+            tokenized_raw.push_str(whitespace.as_str());
             print!("({})", whitespace);
         }
         JsonToken::NewLine(newline) => {
-            parsed_raw.push_str(newline.as_str());
+            tokenized_raw.push_str(newline.as_str());
             print!("");
         }
         JsonToken::ArrayItemDelimiter(delimiter) => {
-            parsed_raw.push_str(delimiter.as_str());
+            tokenized_raw.push_str(delimiter.as_str());
             print!("({})", delimiter);
         }
         JsonToken::PropertyDelimiter(delimiter) => {
-            parsed_raw.push_str(delimiter.as_str());
+            tokenized_raw.push_str(delimiter.as_str());
             print!("({})", delimiter);
         }
         JsonToken::KeyValueDelimiter(delimiter) => {
-            parsed_raw.push_str(delimiter.as_str());
+            tokenized_raw.push_str(delimiter.as_str());
             print!("({})", delimiter);
         }
     }
 }
 
 fn search() {
-    println!("Path '$.' parsed as '{}'", JsonPath::from("$."));
-    println!("Path '$[10]' parsed as '{}'", JsonPath::from("$[10]"));
-    println!("Path '$[10].batters[531]' parsed as '{}'", JsonPath::from("$[10].batters[531]"));
-    println!("Path '$[10][531]['batters']' parsed as '{}'", JsonPath::from("$[10][531]['batters']"));
-    println!("Path '$.batters' parsed as '{}'", JsonPath::from("$.batters"));
-    println!("Path '$..batters' parsed as '{}'", JsonPath::from("$..batters"));
-    println!("Path '$.batters.batter' parsed as '{}'", JsonPath::from("$.batters.batter"));
-    println!("Path '$.batters[252]' parsed as '{}'", JsonPath::from("$.batters[252]"));
-    println!("Path '$.batters['batter']' parsed as '{}'", JsonPath::from("$.batters['batter']"));
-    println!("Path '$.batters['batter'][252]' parsed as '{}'", JsonPath::from("$.batters['batter'][252]"));
-    println!("Path '$['batters']['batter'][252]' parsed as '{}'", JsonPath::from("$['batters']['batter'][252]"));
-    println!("Path '$['batters'].batter[252]' parsed as '{}'", JsonPath::from("$['batters'].batter[252]"));
-    println!("Path '$['\\'batters\\''].batter[252]' parsed as '{}'", JsonPath::from("$['\\'batters\\''].batter[252]"));
-    println!("Path '$[\"'batters'\"].batter[252]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252]"));
-    println!("Path '$[\"\\\"batters\\\"\"].batter[252]' parsed as '{}'", JsonPath::from("$[\"\\\"batters\\\"\"].batter[252]"));
-    println!("Path '$[\"'batters'\"].batter[252]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252]"));
-    println!("Path '$[\"'batters'\"].batter[252][1:10]' parsed as '{}'", JsonPath::from("$[\"'batters'\"].batter[252][1:10]"));
+    println!("Path '$.' tokenized as '{}'", JsonPath::from("$."));
+    println!("Path '$[10]' tokenized as '{}'", JsonPath::from("$[10]"));
+    println!("Path '$[10].batters[531]' tokenized as '{}'", JsonPath::from("$[10].batters[531]"));
+    println!("Path '$[10][531]['batters']' tokenized as '{}'", JsonPath::from("$[10][531]['batters']"));
+    println!("Path '$.batters' tokenized as '{}'", JsonPath::from("$.batters"));
+    println!("Path '$..batters' tokenized as '{}'", JsonPath::from("$..batters"));
+    println!("Path '$.batters.batter' tokenized as '{}'", JsonPath::from("$.batters.batter"));
+    println!("Path '$.batters[252]' tokenized as '{}'", JsonPath::from("$.batters[252]"));
+    println!("Path '$.batters['batter']' tokenized as '{}'", JsonPath::from("$.batters['batter']"));
+    println!("Path '$.batters['batter'][252]' tokenized as '{}'", JsonPath::from("$.batters['batter'][252]"));
+    println!("Path '$['batters']['batter'][252]' tokenized as '{}'", JsonPath::from("$['batters']['batter'][252]"));
+    println!("Path '$['batters'].batter[252]' tokenized as '{}'", JsonPath::from("$['batters'].batter[252]"));
+    println!("Path '$['\\'batters\\''].batter[252]' tokenized as '{}'", JsonPath::from("$['\\'batters\\''].batter[252]"));
+    println!("Path '$[\"'batters'\"].batter[252]' tokenized as '{}'", JsonPath::from("$[\"'batters'\"].batter[252]"));
+    println!("Path '$[\"\\\"batters\\\"\"].batter[252]' tokenized as '{}'", JsonPath::from("$[\"\\\"batters\\\"\"].batter[252]"));
+    println!("Path '$[\"'batters'\"].batter[252]' tokenized as '{}'", JsonPath::from("$[\"'batters'\"].batter[252]"));
+    println!("Path '$[\"'batters'\"].batter[252][1:10]' tokenized as '{}'", JsonPath::from("$[\"'batters'\"].batter[252][1:10]"));
     println!(
-        "Path '$[\"'batters'\"].batter[252][1:10][?(@.color == 'blue')]' parsed as '{}'",
+        "Path '$[\"'batters'\"].batter[252][1:10][?(@.color == 'blue')]' tokenized as '{}'",
         JsonPath::from("$[\"'batters'\"].batter[252][1:10][?(@.color == 'blue')]")
     );
     println!(
-        "Path '$[\"'batters'\"].batter[252][1:10][?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]' parsed as '{}'",
+        "Path '$[\"'batters'\"].batter[252][1:10][?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]' tokenized as '{}'",
         JsonPath::from("$[\"'batters'\"].batter[252][1:10][?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]")
     );
 }
@@ -204,12 +204,12 @@ impl JsonPath {
             operations: Vec::new(),
             partial_operations: Vec::new(),
         };
-        json_path.tokenise();
+        json_path.tokenize();
 
         json_path
     }
 
-    fn tokenise(&mut self) {
+    fn tokenize(&mut self) {
         let mut terminated_path = self.path.clone();
         terminated_path.push_str("\n");
 
