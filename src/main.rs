@@ -17,12 +17,15 @@ struct SSEditArgs {
 }
 
 fn main() -> io::Result<()> {
-    let searcher = true;
+    let searcher = false;
+    let lexing = false;
 
     if searcher {
         search();
-    } else {
+    } else if lexing {
         lexer();
+    } else {
+        find();
     }
 
     Ok(())
@@ -162,6 +165,7 @@ fn search() {
     );
 
     let test_path = JsonPath::from("$[\"'batters'\"].batter[252][1:10]");
+
     let iter = test_path.iter();
 
     for path in iter {
@@ -171,13 +175,138 @@ fn search() {
     println!();
 }
 
+fn find() {
+    let mut json_lexer = JsonStreamLexer::new();
+
+    let mut buffer = [0; 1];
+
+    let test_path = JsonPath::from("$.name");
+    let mut query = JsonQuery::from(&test_path);
+
+    let mut capture = false;
+
+    loop {
+        match io::stdin().lock().read(&mut buffer) {
+            Ok(0) => break,
+            Ok(_) => {
+                let c = buffer[0] as char;
+
+                json_lexer.push_char(c);
+
+                loop {
+                    match json_lexer.pop_token() {
+                        JsonStreamStatus::None => break,
+                        JsonStreamStatus::Token(token) => {
+                            if query.parse(&token) {
+                                capture = true;
+                            }
+
+                            if capture {
+                                match token {
+                                    JsonToken::PropertyName { raw, name: _ } => print!("{}", raw),
+                                    JsonToken::StringValue { raw, value: _ } => print!("{}", raw),
+                                    JsonToken::IntegerValue { raw, value: _ } => print!("{}", raw),
+                                    JsonToken::FloatValue { raw, value: _ } => print!("{}", raw),
+                                    JsonToken::ObjectOpen(raw) => print!("{}", raw),
+                                    JsonToken::ObjectClose(raw) => print!("{}", raw),
+                                    JsonToken::ArrayOpen(raw) => print!("{}", raw),
+                                    JsonToken::ArrayClose(raw) => print!("{}", raw),
+                                    JsonToken::Whitespace(raw) => print!("{}", raw),
+                                    JsonToken::NewLine(raw) => print!("{}", raw),
+                                    JsonToken::ArrayItemDelimiter(raw) => print!("{}", raw),
+                                    JsonToken::PropertyDelimiter(raw) => print!("{}", raw),
+                                    JsonToken::KeyValueDelimiter(raw) => print!("{}", raw),
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Err(_) => todo!(),
+        }
+    }
+
+    json_lexer.close();
+}
+
 struct JsonQuery<'a> {
-    path_iter: JsonPathIterator<'a>,
+    path: &'a JsonPath,
+    path_depth: isize,
+    json_depth: isize,
 }
 
 impl<'a> JsonQuery<'a> {
     fn from(path: &'a JsonPath) -> JsonQuery {
-        JsonQuery { path_iter: path.iter() }
+        JsonQuery { path, path_depth: 0, json_depth: 0 }
+    }
+
+    fn parse(&mut self, token: &JsonToken) -> bool {
+        let path_depth: usize;
+
+        match self.path_depth.try_into() {
+            Ok(truncated_path_depth) => path_depth = truncated_path_depth,
+            Err(_) => todo!(),
+        }
+
+        if path_depth == self.path.operations.len() {
+            return true;
+        }
+
+        let path_component = &self.path.operations[path_depth];
+
+        match token {
+            JsonToken::PropertyName { raw: _, name: _ } => {}
+            JsonToken::StringValue { raw: _, value: _ } => {}
+            JsonToken::IntegerValue { raw: _, value: _ } => {}
+            JsonToken::FloatValue { raw: _, value: _ } => {}
+            JsonToken::ObjectOpen(_) => {
+                println!("here");
+                self.json_depth += 1;
+            }
+            JsonToken::ObjectClose(_) => {
+                self.json_depth -= 1;
+            }
+            JsonToken::ArrayOpen(_) => {
+                self.json_depth += 1;
+            }
+            JsonToken::ArrayClose(_) => {
+                self.json_depth -= 1;
+            }
+            JsonToken::Whitespace(_) => {}
+            JsonToken::NewLine(_) => {}
+            JsonToken::ArrayItemDelimiter(_) => {}
+            JsonToken::PropertyDelimiter(_) => {}
+            JsonToken::KeyValueDelimiter(_) => {}
+        }
+
+        match path_component {
+            JsonPathOperator::ObjectRoot => {
+                println!("1");
+                if path_component.compare(token) && self.json_depth == 1 && self.path_depth == 0 {
+                    self.path_depth += 1;
+                }
+            }
+            JsonPathOperator::ArrayRoot(_) => todo!(),
+            JsonPathOperator::MemberAccess(_) => {
+                println!("2: {} {}", self.json_depth, self.path_depth);
+                if path_component.compare(token) && self.json_depth == self.path_depth {
+                    self.path_depth += 1;
+                }
+            }
+            JsonPathOperator::DeepScanMemberAccess(_) => todo!(),
+            JsonPathOperator::ArrayIndex(_) => todo!(),
+            JsonPathOperator::ArraySlice(_, _) => todo!(),
+            JsonPathOperator::FilterExpression(_) => todo!(),
+        }
+
+        let path_depth: usize;
+
+        match self.path_depth.try_into() {
+            Ok(truncated_path_depth) => path_depth = truncated_path_depth,
+            Err(_) => todo!(),
+        }
+
+        path_depth == self.path.operations.len()
     }
 }
 
@@ -189,6 +318,51 @@ enum JsonPathOperator {
     ArrayIndex(isize),
     ArraySlice(isize, isize),
     FilterExpression(String),
+}
+
+impl JsonPathOperator {
+    fn compare(&self, token: &JsonToken) -> bool {
+        match self {
+            JsonPathOperator::ObjectRoot => match token {
+                JsonToken::PropertyName { raw: _, name: _ } => false,
+                JsonToken::StringValue { raw: _, value: _ } => false,
+                JsonToken::IntegerValue { raw: _, value: _ } => false,
+                JsonToken::FloatValue { raw: _, value: _ } => false,
+                JsonToken::ObjectOpen(_) => true,
+                JsonToken::ObjectClose(_) => false,
+                JsonToken::ArrayOpen(_) => false,
+                JsonToken::ArrayClose(_) => false,
+                JsonToken::Whitespace(_) => false,
+                JsonToken::NewLine(_) => false,
+                JsonToken::ArrayItemDelimiter(_) => false,
+                JsonToken::PropertyDelimiter(_) => false,
+                JsonToken::KeyValueDelimiter(_) => false,
+            },
+            JsonPathOperator::ArrayRoot(_) => todo!(),
+            JsonPathOperator::MemberAccess(path_name) => match token {
+                JsonToken::PropertyName { raw: _, name: token_name } => {
+                    println!("3: {} {} {}", token_name, path_name, path_name == token_name);
+                    path_name == token_name
+                }
+                JsonToken::StringValue { raw: _, value: _ } => false,
+                JsonToken::IntegerValue { raw: _, value: _ } => false,
+                JsonToken::FloatValue { raw: _, value: _ } => false,
+                JsonToken::ObjectOpen(_) => false,
+                JsonToken::ObjectClose(_) => false,
+                JsonToken::ArrayOpen(_) => false,
+                JsonToken::ArrayClose(_) => false,
+                JsonToken::Whitespace(_) => false,
+                JsonToken::NewLine(_) => false,
+                JsonToken::ArrayItemDelimiter(_) => false,
+                JsonToken::PropertyDelimiter(_) => false,
+                JsonToken::KeyValueDelimiter(_) => false,
+            },
+            JsonPathOperator::DeepScanMemberAccess(_) => todo!(),
+            JsonPathOperator::ArrayIndex(_) => todo!(),
+            JsonPathOperator::ArraySlice(_, _) => todo!(),
+            JsonPathOperator::FilterExpression(_) => todo!(),
+        }
+    }
 }
 
 impl fmt::Display for JsonPathOperator {
