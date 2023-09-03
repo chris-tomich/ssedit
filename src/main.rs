@@ -17,7 +17,7 @@ struct SSEditArgs {
 }
 
 fn main() -> io::Result<()> {
-    let searcher = false;
+    let searcher = true;
 
     if searcher {
         search();
@@ -160,6 +160,25 @@ fn search() {
         "Path '$[\"'batters'\"].batter[252][1:10][?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]' tokenized as '{}'",
         JsonPath::from("$[\"'batters'\"].batter[252][1:10][?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]")
     );
+
+    let test_path = JsonPath::from("$[\"'batters'\"].batter[252][1:10]");
+    let iter = test_path.iter();
+
+    for path in iter {
+        print!("{} ", path);
+    }
+
+    println!();
+}
+
+struct JsonQuery<'a> {
+    path_iter: JsonPathIterator<'a>,
+}
+
+impl<'a> JsonQuery<'a> {
+    fn from(path: &'a JsonPath) -> JsonQuery {
+        JsonQuery { path_iter: path.iter() }
+    }
 }
 
 enum JsonPathOperator {
@@ -170,6 +189,52 @@ enum JsonPathOperator {
     ArrayIndex(isize),
     ArraySlice(isize, isize),
     FilterExpression(String),
+}
+
+impl fmt::Display for JsonPathOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut output = String::new();
+
+        match self {
+            JsonPathOperator::ObjectRoot => {
+                output.push_str("ObjectRoot");
+            }
+            JsonPathOperator::ArrayRoot(index) => {
+                output.push_str("ArrayRoot(");
+                output.push_str(index.to_string().as_str());
+                output.push_str(")");
+            }
+            JsonPathOperator::MemberAccess(name) => {
+                output.push_str("MemberAccess(");
+                output.push_str(name);
+                output.push_str(")");
+            }
+            JsonPathOperator::DeepScanMemberAccess(name) => {
+                output.push_str("DeepScanMemberAccess(");
+                output.push_str(name);
+                output.push_str(")");
+            }
+            JsonPathOperator::ArrayIndex(index) => {
+                output.push_str("ArrayIndex(");
+                output.push_str(index.to_string().as_str());
+                output.push_str(")");
+            }
+            JsonPathOperator::ArraySlice(start, end) => {
+                output.push_str("ArraySlice(");
+                output.push_str(start.to_string().as_str());
+                output.push_str(",");
+                output.push_str(end.to_string().as_str());
+                output.push_str(")");
+            }
+            JsonPathOperator::FilterExpression(filter) => {
+                output.push_str("FilterExpression(");
+                output.push_str(filter);
+                output.push_str(")");
+            }
+        };
+
+        write!(f, "{}", output)
+    }
 }
 
 enum JsonPathPartialOperator {
@@ -191,6 +256,34 @@ enum JsonPathPartialOperator {
     ClosedDoubleQuotes(String),
 }
 
+struct JsonPathIterator<'a> {
+    path_data: &'a Vec<JsonPathOperator>,
+    current_index: usize,
+}
+
+impl<'a> JsonPathIterator<'a> {
+    fn from(path: &JsonPath) -> JsonPathIterator {
+        JsonPathIterator {
+            path_data: &path.operations,
+            current_index: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for JsonPathIterator<'a> {
+    type Item = &'a JsonPathOperator;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_index < self.path_data.len() {
+            let item = &self.path_data[self.current_index];
+            self.current_index += 1;
+            Some(item)
+        } else {
+            None
+        }
+    }
+}
+
 struct JsonPath {
     path: String,
     operations: Vec<JsonPathOperator>,
@@ -207,6 +300,10 @@ impl JsonPath {
         json_path.tokenize();
 
         json_path
+    }
+
+    fn iter(&self) -> JsonPathIterator<'_> {
+        JsonPathIterator::from(self)
     }
 
     fn tokenize(&mut self) {
@@ -688,43 +785,7 @@ impl fmt::Display for JsonPath {
                 is_first = false;
             }
 
-            match operation {
-                JsonPathOperator::ObjectRoot => {
-                    output.push_str("ObjectRoot");
-                }
-                JsonPathOperator::ArrayRoot(index) => {
-                    output.push_str("ArrayRoot(");
-                    output.push_str(index.to_string().as_str());
-                    output.push_str(")");
-                }
-                JsonPathOperator::MemberAccess(name) => {
-                    output.push_str("MemberAccess(");
-                    output.push_str(name);
-                    output.push_str(")");
-                }
-                JsonPathOperator::DeepScanMemberAccess(name) => {
-                    output.push_str("DeepScanMemberAccess(");
-                    output.push_str(name);
-                    output.push_str(")");
-                }
-                JsonPathOperator::ArrayIndex(index) => {
-                    output.push_str("ArrayIndex(");
-                    output.push_str(index.to_string().as_str());
-                    output.push_str(")");
-                }
-                JsonPathOperator::ArraySlice(start, end) => {
-                    output.push_str("ArraySlice(");
-                    output.push_str(start.to_string().as_str());
-                    output.push_str(",");
-                    output.push_str(end.to_string().as_str());
-                    output.push_str(")");
-                }
-                JsonPathOperator::FilterExpression(filter) => {
-                    output.push_str("FilterExpression(");
-                    output.push_str(filter);
-                    output.push_str(")");
-                }
-            };
+            output.push_str(operation.to_string().as_str());
         }
 
         write!(f, "{}", output)
