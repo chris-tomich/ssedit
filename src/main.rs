@@ -180,10 +180,10 @@ fn find() {
 
     let mut buffer = [0; 1];
 
-    let test_path = JsonPath::from("$.toppings.topping[1].type");
+    let test_path = JsonPath::from("$.toppings.topping[1].id");
     let mut query = JsonQuery::from(&test_path);
 
-    let mut capture = false;
+    let mut capture;
 
     loop {
         match io::stdin().lock().read(&mut buffer) {
@@ -197,9 +197,7 @@ fn find() {
                     match json_lexer.pop_token() {
                         JsonStreamStatus::None => break,
                         JsonStreamStatus::Token(token) => {
-                            if query.parse(&token) {
-                                capture = true;
-                            }
+                            capture = query.parse(&token);
 
                             if capture {
                                 match token {
@@ -230,103 +228,35 @@ fn find() {
 }
 
 struct JsonQuery<'a> {
-    path: &'a JsonPath,
-    path_depth: isize,
-    json_depth: isize,
-    array_indexes: Vec<usize>,
+    path: JsonPathCursor<'a>,
 }
 
 impl<'a> JsonQuery<'a> {
     fn from(path: &'a JsonPath) -> JsonQuery {
-        JsonQuery {
-            path,
-            path_depth: 0,
-            json_depth: 0,
-            array_indexes: Vec::new(),
-        }
+        JsonQuery { path: JsonPathCursor::from(path) }
     }
 
     fn parse(&mut self, token: &JsonToken) -> bool {
-        let path_depth: usize;
-
-        match self.path_depth.try_into() {
-            Ok(truncated_path_depth) => path_depth = truncated_path_depth,
-            Err(_) => todo!(),
-        }
-
-        if path_depth == self.path.operations.len() {
-            return true;
-        }
-
-        let path_component = &self.path.operations[path_depth];
-
         match token {
-            JsonToken::PropertyName { raw: _, name: _ } => {}
+            JsonToken::PropertyName { raw: _, name } => self.path.member_access(name),
             JsonToken::StringValue { raw: _, value: _ } => {}
             JsonToken::IntegerValue { raw: _, value: _ } => {}
             JsonToken::FloatValue { raw: _, value: _ } => {}
-            JsonToken::ObjectOpen(_) => {
-                self.json_depth += 1;
-            }
-            JsonToken::ObjectClose(_) => {
-                self.json_depth -= 1;
-            }
+            JsonToken::ObjectOpen(_) => self.path.traverse(),
+            JsonToken::ObjectClose(_) => self.path.recede(),
             JsonToken::ArrayOpen(_) => {
-                self.json_depth += 1;
-                self.array_indexes.push(0);
+                self.path.traverse();
+                self.path.increment_index();
             }
-            JsonToken::ArrayClose(_) => {
-                self.json_depth -= 1;
-                self.array_indexes.pop();
-            }
+            JsonToken::ArrayClose(_) => self.path.recede(),
             JsonToken::Whitespace(_) => {}
             JsonToken::NewLine(_) => {}
-            JsonToken::ArrayItemDelimiter(_) => {
-                if let Some(array_index) = self.array_indexes.last_mut() {
-                    *array_index += 1;
-                }
-            }
+            JsonToken::ArrayItemDelimiter(_) => self.path.increment_index(),
             JsonToken::PropertyDelimiter(_) => {}
             JsonToken::KeyValueDelimiter(_) => {}
         }
 
-        match path_component {
-            JsonPathOperator::ObjectRoot => {
-                if path_component.compare(token) && self.json_depth == 1 && self.path_depth == 0 {
-                    self.path_depth += 1;
-                }
-            }
-            JsonPathOperator::ArrayRoot(_) => todo!(),
-            JsonPathOperator::MemberAccess(_) => {
-                if path_component.compare(token) && self.json_depth == self.path_depth {
-                    self.path_depth += 1;
-                }
-            }
-            JsonPathOperator::DeepScanMemberAccess(_) => todo!(),
-            JsonPathOperator::ArrayIndex(index_to_find) => match <isize as TryInto<usize>>::try_into(*index_to_find) {
-                Ok(truncated_index_to_find) => {
-                    if let Some(array_index) = self.array_indexes.pop() {
-                        if truncated_index_to_find == array_index {
-                            self.path_depth += 1;
-                        }
-
-                        self.array_indexes.push(array_index);
-                    }
-                }
-                Err(_) => todo!(),
-            },
-            JsonPathOperator::ArraySlice(_, _) => todo!(),
-            JsonPathOperator::FilterExpression(_) => todo!(),
-        }
-
-        let path_depth: usize;
-
-        match self.path_depth.try_into() {
-            Ok(truncated_path_depth) => path_depth = truncated_path_depth,
-            Err(_) => todo!(),
-        }
-
-        path_depth == self.path.operations.len()
+        self.path.is_matching()
     }
 }
 
@@ -338,48 +268,6 @@ enum JsonPathOperator {
     ArrayIndex(isize),
     ArraySlice(isize, isize),
     FilterExpression(String),
-}
-
-impl JsonPathOperator {
-    fn compare(&self, token: &JsonToken) -> bool {
-        match self {
-            JsonPathOperator::ObjectRoot => match token {
-                JsonToken::PropertyName { raw: _, name: _ } => false,
-                JsonToken::StringValue { raw: _, value: _ } => false,
-                JsonToken::IntegerValue { raw: _, value: _ } => false,
-                JsonToken::FloatValue { raw: _, value: _ } => false,
-                JsonToken::ObjectOpen(_) => true,
-                JsonToken::ObjectClose(_) => false,
-                JsonToken::ArrayOpen(_) => false,
-                JsonToken::ArrayClose(_) => false,
-                JsonToken::Whitespace(_) => false,
-                JsonToken::NewLine(_) => false,
-                JsonToken::ArrayItemDelimiter(_) => false,
-                JsonToken::PropertyDelimiter(_) => false,
-                JsonToken::KeyValueDelimiter(_) => false,
-            },
-            JsonPathOperator::ArrayRoot(_) => todo!(),
-            JsonPathOperator::MemberAccess(path_name) => match token {
-                JsonToken::PropertyName { raw: _, name: token_name } => path_name == token_name,
-                JsonToken::StringValue { raw: _, value: _ } => false,
-                JsonToken::IntegerValue { raw: _, value: _ } => false,
-                JsonToken::FloatValue { raw: _, value: _ } => false,
-                JsonToken::ObjectOpen(_) => false,
-                JsonToken::ObjectClose(_) => false,
-                JsonToken::ArrayOpen(_) => false,
-                JsonToken::ArrayClose(_) => false,
-                JsonToken::Whitespace(_) => false,
-                JsonToken::NewLine(_) => false,
-                JsonToken::ArrayItemDelimiter(_) => false,
-                JsonToken::PropertyDelimiter(_) => false,
-                JsonToken::KeyValueDelimiter(_) => false,
-            },
-            JsonPathOperator::DeepScanMemberAccess(_) => todo!(),
-            JsonPathOperator::ArrayIndex(_) => todo!(),
-            JsonPathOperator::ArraySlice(_, _) => todo!(),
-            JsonPathOperator::FilterExpression(_) => todo!(),
-        }
-    }
 }
 
 impl fmt::Display for JsonPathOperator {
@@ -472,6 +360,112 @@ impl<'a> Iterator for JsonPathIterator<'a> {
         } else {
             None
         }
+    }
+}
+
+//let test_path = JsonPath::from("$.toppings.topping[1].type");
+
+struct JsonPathCursor<'a> {
+    path: &'a JsonPath,
+    path_cursor: usize,
+    document_cursor: usize,
+    document_array_cursors: Vec<isize>,
+    matching: bool,
+}
+
+impl<'a> JsonPathCursor<'a> {
+    fn from(path: &'a JsonPath) -> JsonPathCursor {
+        JsonPathCursor {
+            path,
+            path_cursor: 0,
+            document_cursor: 0,
+            document_array_cursors: Vec::new(),
+            matching: true,
+        }
+    }
+
+    fn traverse(&mut self) {
+        if self.path_cursor != self.document_cursor {
+            self.document_cursor += 1;
+            return;
+        } else {
+            self.document_cursor += 1;
+            self.document_array_cursors.push(-1);
+        }
+
+        if !self.matching {
+            return;
+        }
+
+        if self.path_cursor == self.path.operations.len() - 1 {
+            return;
+        }
+
+        match &self.path.operations[self.path_cursor] {
+            JsonPathOperator::ObjectRoot => self.path_cursor += 1,
+            JsonPathOperator::ArrayRoot(_) => todo!(),
+            JsonPathOperator::MemberAccess(_) => self.path_cursor += 1,
+            JsonPathOperator::DeepScanMemberAccess(_) => todo!(),
+            JsonPathOperator::ArrayIndex(_) => self.path_cursor += 1,
+            JsonPathOperator::ArraySlice(_, _) => todo!(),
+            JsonPathOperator::FilterExpression(_) => todo!(),
+        }
+    }
+
+    fn recede(&mut self) {
+        if self.path_cursor != self.document_cursor {
+            self.document_cursor -= 1;
+            self.document_array_cursors.pop();
+            return;
+        } else {
+            self.path_cursor -= 1;
+            self.document_cursor -= 1;
+            self.document_array_cursors.pop();
+            self.matching = true;
+        }
+    }
+
+    fn member_access(&mut self, name: &String) {
+        if self.path_cursor != self.document_cursor {
+            return;
+        }
+
+        match &self.path.operations[self.path_cursor] {
+            JsonPathOperator::ObjectRoot => self.matching = false,
+            JsonPathOperator::ArrayRoot(_) => self.matching = false,
+            JsonPathOperator::MemberAccess(path_member) => self.matching = *name == *path_member,
+            JsonPathOperator::DeepScanMemberAccess(_) => self.matching = false,
+            JsonPathOperator::ArrayIndex(_) => self.matching = false,
+            JsonPathOperator::ArraySlice(_, _) => self.matching = false,
+            JsonPathOperator::FilterExpression(_) => self.matching = false,
+        }
+    }
+
+    fn increment_index(&mut self) {
+        if self.path_cursor != self.document_cursor {
+            return;
+        }
+
+        match &self.path.operations[self.path_cursor] {
+            JsonPathOperator::ObjectRoot => self.matching = false,
+            JsonPathOperator::ArrayRoot(_) => self.matching = false,
+            JsonPathOperator::MemberAccess(_) => self.matching = false,
+            JsonPathOperator::DeepScanMemberAccess(_) => self.matching = false,
+            JsonPathOperator::ArrayIndex(path_index) => {
+                if let Some(document_array_cursor) = self.document_array_cursors.last_mut() {
+                    *document_array_cursor += 1;
+                    self.matching = *document_array_cursor == *path_index;
+                } else {
+                    self.matching = false
+                }
+            }
+            JsonPathOperator::ArraySlice(_, _) => self.matching = false,
+            JsonPathOperator::FilterExpression(_) => self.matching = false,
+        }
+    }
+
+    fn is_matching(&self) -> bool {
+        self.matching && self.path_cursor == self.path.operations.len() - 1
     }
 }
 
