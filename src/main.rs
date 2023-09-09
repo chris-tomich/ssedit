@@ -363,14 +363,15 @@ impl<'a> Iterator for JsonPathIterator<'a> {
     }
 }
 
-//let test_path = JsonPath::from("$.toppings.topping[1].type");
+//let test_path = JsonPath::from("$.toppings.topping[1].id");
 
 struct JsonPathCursor<'a> {
     path: &'a JsonPath,
     path_cursor: usize,
     document_cursor: usize,
     document_array_cursors: Vec<isize>,
-    matching: bool,
+    path_aligned: bool,
+    path_match: bool,
 }
 
 impl<'a> JsonPathCursor<'a> {
@@ -380,7 +381,8 @@ impl<'a> JsonPathCursor<'a> {
             path_cursor: 0,
             document_cursor: 0,
             document_array_cursors: Vec::new(),
-            matching: true,
+            path_aligned: true,
+            path_match: false,
         }
     }
 
@@ -393,7 +395,7 @@ impl<'a> JsonPathCursor<'a> {
             self.document_array_cursors.push(-1);
         }
 
-        if !self.matching {
+        if !self.path_aligned {
             return;
         }
 
@@ -421,7 +423,8 @@ impl<'a> JsonPathCursor<'a> {
             self.path_cursor -= 1;
             self.document_cursor -= 1;
             self.document_array_cursors.pop();
-            self.matching = true;
+            self.path_aligned = true;
+            self.path_match = false;
         }
     }
 
@@ -431,14 +434,16 @@ impl<'a> JsonPathCursor<'a> {
         }
 
         match &self.path.operations[self.path_cursor] {
-            JsonPathOperator::ObjectRoot => self.matching = false,
-            JsonPathOperator::ArrayRoot(_) => self.matching = false,
-            JsonPathOperator::MemberAccess(path_member) => self.matching = *name == *path_member,
-            JsonPathOperator::DeepScanMemberAccess(_) => self.matching = false,
-            JsonPathOperator::ArrayIndex(_) => self.matching = false,
-            JsonPathOperator::ArraySlice(_, _) => self.matching = false,
-            JsonPathOperator::FilterExpression(_) => self.matching = false,
+            JsonPathOperator::ObjectRoot => self.path_aligned = false,
+            JsonPathOperator::ArrayRoot(_) => self.path_aligned = false,
+            JsonPathOperator::MemberAccess(path_member) => self.path_aligned = *name == *path_member,
+            JsonPathOperator::DeepScanMemberAccess(_) => self.path_aligned = false,
+            JsonPathOperator::ArrayIndex(_) => self.path_aligned = false,
+            JsonPathOperator::ArraySlice(_, _) => self.path_aligned = false,
+            JsonPathOperator::FilterExpression(_) => self.path_aligned = false,
         }
+
+        self.path_match = self.path_aligned && self.path_cursor == self.path.operations.len() - 1;
     }
 
     fn increment_index(&mut self) {
@@ -447,25 +452,27 @@ impl<'a> JsonPathCursor<'a> {
         }
 
         match &self.path.operations[self.path_cursor] {
-            JsonPathOperator::ObjectRoot => self.matching = false,
-            JsonPathOperator::ArrayRoot(_) => self.matching = false,
-            JsonPathOperator::MemberAccess(_) => self.matching = false,
-            JsonPathOperator::DeepScanMemberAccess(_) => self.matching = false,
+            JsonPathOperator::ObjectRoot => self.path_aligned = false,
+            JsonPathOperator::ArrayRoot(_) => self.path_aligned = false,
+            JsonPathOperator::MemberAccess(_) => self.path_aligned = false,
+            JsonPathOperator::DeepScanMemberAccess(_) => self.path_aligned = false,
             JsonPathOperator::ArrayIndex(path_index) => {
                 if let Some(document_array_cursor) = self.document_array_cursors.last_mut() {
                     *document_array_cursor += 1;
-                    self.matching = *document_array_cursor == *path_index;
+                    self.path_aligned = *document_array_cursor == *path_index;
                 } else {
-                    self.matching = false
+                    self.path_aligned = false
                 }
             }
-            JsonPathOperator::ArraySlice(_, _) => self.matching = false,
-            JsonPathOperator::FilterExpression(_) => self.matching = false,
+            JsonPathOperator::ArraySlice(_, _) => self.path_aligned = false,
+            JsonPathOperator::FilterExpression(_) => self.path_aligned = false,
         }
+
+        self.path_match = self.path_aligned && self.path_cursor == self.path.operations.len() - 1;
     }
 
     fn is_matching(&self) -> bool {
-        self.matching && self.path_cursor == self.path.operations.len() - 1
+        self.path_match
     }
 }
 
