@@ -180,7 +180,7 @@ fn find() {
 
     let mut buffer = [0; 1];
 
-    let test_path = JsonPath::from("$.toppings.topping[1].id");
+    let test_path = JsonPath::from("$.toppings");
     let mut query = JsonQuery::from(&test_path);
 
     let mut capture;
@@ -229,19 +229,24 @@ fn find() {
 
 struct JsonQuery<'a> {
     path: JsonPathCursor<'a>,
+    current_match_ended: bool,
+    current_match_depth: isize,
 }
 
 impl<'a> JsonQuery<'a> {
     fn from(path: &'a JsonPath) -> JsonQuery {
-        JsonQuery { path: JsonPathCursor::from(path) }
+        JsonQuery {
+            path: JsonPathCursor::from(path),
+            current_match_ended: false,
+            current_match_depth: -1,
+        }
     }
 
     fn parse(&mut self, token: &JsonToken) -> bool {
+        let before_parse_match_state = self.path.is_matching();
+
         match token {
             JsonToken::PropertyName { raw: _, name } => self.path.member_access(name),
-            JsonToken::StringValue { raw: _, value: _ } => {}
-            JsonToken::IntegerValue { raw: _, value: _ } => {}
-            JsonToken::FloatValue { raw: _, value: _ } => {}
             JsonToken::ObjectOpen(_) => self.path.traverse(),
             JsonToken::ObjectClose(_) => self.path.recede(),
             JsonToken::ArrayOpen(_) => {
@@ -249,14 +254,75 @@ impl<'a> JsonQuery<'a> {
                 self.path.increment_index();
             }
             JsonToken::ArrayClose(_) => self.path.recede(),
-            JsonToken::Whitespace(_) => {}
-            JsonToken::NewLine(_) => {}
             JsonToken::ArrayItemDelimiter(_) => self.path.increment_index(),
-            JsonToken::PropertyDelimiter(_) => {}
-            JsonToken::KeyValueDelimiter(_) => {}
+            _ => {}
         }
 
-        self.path.is_matching()
+        let mut is_matching = self.path.is_matching();
+
+        let matching_just_started = !before_parse_match_state && is_matching;
+
+        if !is_matching && self.current_match_ended {
+            self.current_match_ended = false;
+        }
+
+        if is_matching {
+            match token {
+                JsonToken::PropertyName { raw: _, name: _ } => {
+                    if self.current_match_depth <= 0 {
+                        self.current_match_depth = 0;
+                        is_matching = false;
+                    }
+                }
+                JsonToken::ObjectOpen(_) => self.current_match_depth += 1,
+                JsonToken::ObjectClose(_) => {
+                    self.current_match_depth -= 1;
+
+                    if self.current_match_depth == 0 {
+                        self.current_match_ended = true;
+                        return is_matching;
+                    }
+                }
+                JsonToken::ArrayOpen(_) => self.current_match_depth += 1,
+                JsonToken::ArrayClose(_) => {
+                    self.current_match_depth -= 1;
+
+                    if self.current_match_depth == 0 {
+                        self.current_match_ended = true;
+                        return is_matching;
+                    }
+                }
+                JsonToken::ArrayItemDelimiter(_) => {
+                    if self.current_match_depth <= 0 {
+                        if !matching_just_started {
+                            self.current_match_ended = true;
+                        }
+                        self.current_match_depth = 0;
+                        is_matching = false;
+                    }
+                }
+                JsonToken::PropertyDelimiter(_) => {
+                    if self.current_match_depth <= 0 {
+                        self.current_match_ended = true;
+                        self.current_match_depth = 0;
+                        is_matching = false;
+                    }
+                }
+                JsonToken::KeyValueDelimiter(_) => {
+                    if self.current_match_depth <= 0 {
+                        self.current_match_depth = 0;
+                        is_matching = false;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if self.current_match_ended {
+            false
+        } else {
+            is_matching
+        }
     }
 }
 
