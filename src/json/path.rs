@@ -121,6 +121,7 @@ impl JsonPath {
         json_path
     }
 
+    #[allow(dead_code)]
     pub fn iter(&self) -> JsonPathIterator<'_> {
         JsonPathIterator::from(self)
     }
@@ -627,5 +628,144 @@ mod tests {
     #[test]
     fn test_json_path_array_root() {
         assert_eq!(JsonPath::from("$[5]").to_string(), "ArrayRoot(5)");
+    }
+
+    #[test]
+    fn test_json_path_array_root_member_array() {
+        assert_eq!(JsonPath::from("$[10].batters[531]").to_string(), "ArrayRoot(10) -> MemberAccess(batters) -> ArrayIndex(531)");
+    }
+
+    #[test]
+    fn test_json_path_array_root_bracketed_member_access() {
+        assert_eq!(JsonPath::from("$[10][531]['batters']").to_string(), "ArrayRoot(10) -> ArrayIndex(531) -> MemberAccess(batters)");
+    }
+
+    #[test]
+    fn test_json_path_object_root_member_access() {
+        assert_eq!(JsonPath::from("$.batters").to_string(), "ObjectRoot -> MemberAccess(batters)");
+    }
+
+    #[test]
+    fn test_json_path_object_root_member_access_of_member_access() {
+        assert_eq!(JsonPath::from("$.batters.batter").to_string(), "ObjectRoot -> MemberAccess(batters) -> MemberAccess(batter)");
+    }
+
+    #[test]
+    fn test_json_path_object_root_deep_scan_member_access() {
+        assert_eq!(JsonPath::from("$..batter").to_string(), "ObjectRoot -> DeepScanMemberAccess(batter)");
+    }
+
+    #[test]
+    fn test_json_path_object_root_array_index_of_member_access() {
+        assert_eq!(JsonPath::from("$.batters[252]").to_string(), "ObjectRoot -> MemberAccess(batters) -> ArrayIndex(252)");
+    }
+
+    #[test]
+    fn test_json_path_object_root_bracketed_member_access_of_member_access() {
+        assert_eq!(JsonPath::from("$.batters['batter']").to_string(), "ObjectRoot -> MemberAccess(batters) -> MemberAccess(batter)");
+    }
+
+    #[test]
+    fn test_json_path_object_root_array_index_of_bracketed_member_access_of_member_access() {
+        assert_eq!(
+            JsonPath::from("$.batters['batter'][252]").to_string(),
+            "ObjectRoot -> MemberAccess(batters) -> MemberAccess(batter) -> ArrayIndex(252)"
+        );
+    }
+
+    #[test]
+    fn test_json_path_object_root_array_index_of_bracketed_member_access_of_bracketed_member_access() {
+        assert_eq!(
+            JsonPath::from("$['batters']['batter'][252]").to_string(),
+            "ObjectRoot -> MemberAccess(batters) -> MemberAccess(batter) -> ArrayIndex(252)"
+        );
+    }
+
+    #[test]
+    fn test_json_path_object_root_array_index_of_bracketed_member_access_of_bracketed_member_access_mixed_quotes() {
+        assert_eq!(
+            JsonPath::from("$['batters'][\"batter\"][252]").to_string(),
+            "ObjectRoot -> MemberAccess(batters) -> MemberAccess(batter) -> ArrayIndex(252)"
+        );
+    }
+
+    #[test]
+    fn test_json_path_object_root_array_index_of_member_access_of_bracketed_member_access() {
+        assert_eq!(
+            JsonPath::from("$['batters'].batter[252]").to_string(),
+            "ObjectRoot -> MemberAccess(batters) -> MemberAccess(batter) -> ArrayIndex(252)"
+        );
+    }
+
+    #[test]
+    fn test_json_path_object_root_array_index_of_bracketed_member_access_of_member_access_escaped_single_quotes() {
+        assert_eq!(
+            JsonPath::from("$['\\'batters\\''].batter[252]").to_string(),
+            "ObjectRoot -> MemberAccess('batters') -> MemberAccess(batter) -> ArrayIndex(252)"
+        );
+    }
+
+    #[test]
+    fn test_json_path_object_root_array_index_of_bracketed_member_access_of_bracketed_member_access_unescaped_single_quotes() {
+        assert_eq!(
+            JsonPath::from("$[\"'batters'\"].batter[252]").to_string(),
+            "ObjectRoot -> MemberAccess('batters') -> MemberAccess(batter) -> ArrayIndex(252)"
+        );
+    }
+
+    #[test]
+    fn test_json_path_object_root_array_index_of_bracketed_member_access_of_member_access_escaped_double_quotes() {
+        assert_eq!(
+            JsonPath::from("$[\"\\\"batters\\\"\"].batter[252]").to_string(),
+            "ObjectRoot -> MemberAccess(\"batters\") -> MemberAccess(batter) -> ArrayIndex(252)"
+        );
+    }
+
+    #[test]
+    fn test_json_path_object_root_array_index_of_bracketed_member_access_of_bracketed_member_access_unescaped_double_quotes() {
+        assert_eq!(
+            JsonPath::from("$['\"batters\"'].batter[252]").to_string(),
+            "ObjectRoot -> MemberAccess(\"batters\") -> MemberAccess(batter) -> ArrayIndex(252)"
+        );
+    }
+
+    #[test]
+    fn test_json_path_object_root_array_slice_of_member_access_of_bracketed_member_access() {
+        assert_eq!(
+            JsonPath::from("$['batters'].batter[1:10]").to_string(),
+            "ObjectRoot -> MemberAccess(batters) -> MemberAccess(batter) -> ArraySlice(1,10)"
+        );
+    }
+
+    #[test]
+    fn test_json_path_object_root_basic_filter_expression() {
+        assert_eq!(
+            JsonPath::from("$.batters[?(@.color == 'green')]").to_string(),
+            "ObjectRoot -> MemberAccess(batters) -> FilterExpression(@.color == 'green')"
+        );
+    }
+
+    #[test]
+    fn test_json_path_object_root_complex_filter_expression() {
+        assert_eq!(
+            JsonPath::from("$.batters[?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]").to_string(),
+            "ObjectRoot -> MemberAccess(batters) -> FilterExpression(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))"
+        );
+    }
+
+    #[test]
+    fn test_json_path_object_root_filter_basic_expression_array_slice_of_array_index_of_member_access_of_bracketed_member_access_with_unescaped_single_quotes() {
+        assert_eq!(
+            JsonPath::from("$[\"'batters'\"].batter[252][1:10][?(@.color == 'blue')]").to_string(),
+            "ObjectRoot -> MemberAccess('batters') -> MemberAccess(batter) -> ArrayIndex(252) -> ArraySlice(1,10) -> FilterExpression(@.color == 'blue')"
+        )
+    }
+
+    #[test]
+    fn test_json_path_object_root_complex_filter_expression_array_slice_of_array_index_of_member_access_of_bracketed_member_access_with_unescaped_single_quotes() {
+        assert_eq!(
+            JsonPath::from("$[\"'batters'\"].batter[252][1:10][?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]").to_string(),
+            "ObjectRoot -> MemberAccess('batters') -> MemberAccess(batter) -> ArrayIndex(252) -> ArraySlice(1,10) -> FilterExpression(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))"
+        )
     }
 }

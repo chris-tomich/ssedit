@@ -20,12 +20,9 @@ struct SSEditArgs {
 }
 
 fn main() -> io::Result<()> {
-    let searcher = false;
     let lexing = false;
 
-    if searcher {
-        search();
-    } else if lexing {
+    if lexing {
         lexer();
     } else {
         find();
@@ -138,44 +135,6 @@ fn write_token(tokenized_raw: &mut String, token: JsonToken) {
             print!("({})", delimiter);
         }
     }
-}
-
-fn search() {
-    println!("Path '$.' tokenized as '{}'", JsonPath::from("$."));
-    println!("Path '$[10]' tokenized as '{}'", JsonPath::from("$[10]"));
-    println!("Path '$[10].batters[531]' tokenized as '{}'", JsonPath::from("$[10].batters[531]"));
-    println!("Path '$[10][531]['batters']' tokenized as '{}'", JsonPath::from("$[10][531]['batters']"));
-    println!("Path '$.batters' tokenized as '{}'", JsonPath::from("$.batters"));
-    println!("Path '$..batters' tokenized as '{}'", JsonPath::from("$..batters"));
-    println!("Path '$.batters.batter' tokenized as '{}'", JsonPath::from("$.batters.batter"));
-    println!("Path '$.batters[252]' tokenized as '{}'", JsonPath::from("$.batters[252]"));
-    println!("Path '$.batters['batter']' tokenized as '{}'", JsonPath::from("$.batters['batter']"));
-    println!("Path '$.batters['batter'][252]' tokenized as '{}'", JsonPath::from("$.batters['batter'][252]"));
-    println!("Path '$['batters']['batter'][252]' tokenized as '{}'", JsonPath::from("$['batters']['batter'][252]"));
-    println!("Path '$['batters'].batter[252]' tokenized as '{}'", JsonPath::from("$['batters'].batter[252]"));
-    println!("Path '$['\\'batters\\''].batter[252]' tokenized as '{}'", JsonPath::from("$['\\'batters\\''].batter[252]"));
-    println!("Path '$[\"'batters'\"].batter[252]' tokenized as '{}'", JsonPath::from("$[\"'batters'\"].batter[252]"));
-    println!("Path '$[\"\\\"batters\\\"\"].batter[252]' tokenized as '{}'", JsonPath::from("$[\"\\\"batters\\\"\"].batter[252]"));
-    println!("Path '$[\"'batters'\"].batter[252]' tokenized as '{}'", JsonPath::from("$[\"'batters'\"].batter[252]"));
-    println!("Path '$[\"'batters'\"].batter[252][1:10]' tokenized as '{}'", JsonPath::from("$[\"'batters'\"].batter[252][1:10]"));
-    println!(
-        "Path '$[\"'batters'\"].batter[252][1:10][?(@.color == 'blue')]' tokenized as '{}'",
-        JsonPath::from("$[\"'batters'\"].batter[252][1:10][?(@.color == 'blue')]")
-    );
-    println!(
-        "Path '$[\"'batters'\"].batter[252][1:10][?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]' tokenized as '{}'",
-        JsonPath::from("$[\"'batters'\"].batter[252][1:10][?(@.color == 'green' || (@.color[0] == 'blue' && @.color[1] == 'yellow'))]")
-    );
-
-    let test_path = JsonPath::from("$[\"'batters'\"].batter[252][1:10]");
-
-    let iter = test_path.iter();
-
-    for path in iter {
-        print!("{} ", path);
-    }
-
-    println!();
 }
 
 fn find() {
