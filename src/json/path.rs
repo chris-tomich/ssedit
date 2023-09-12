@@ -530,7 +530,7 @@ impl JsonPath {
                                     self.operations.push(JsonPathOperator::ArrayRoot(index));
                                 }
                             }
-                            JsonPathPartialOperator::PreMemberAccess => self.operations.push(JsonPathOperator::MemberAccess(String::new())),
+                            JsonPathPartialOperator::PreMemberAccess => {}
                             JsonPathPartialOperator::MemberAccess(name) => self.operations.push(JsonPathOperator::MemberAccess(name)),
                             JsonPathPartialOperator::DeepScanMemberAccess(name) => self.operations.push(JsonPathOperator::DeepScanMemberAccess(name)),
                             JsonPathPartialOperator::OpenBracket => self.operations.push(JsonPathOperator::MemberAccess(String::new())),
@@ -612,5 +612,20 @@ impl fmt::Display for JsonPath {
         }
 
         write!(f, "{}", output)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_json_path_object_root() {
+        assert_eq!(JsonPath::from("$.").to_string(), "ObjectRoot");
+    }
+
+    #[test]
+    fn test_json_path_array_root() {
+        assert_eq!(JsonPath::from("$[5]").to_string(), "ArrayRoot(5)");
     }
 }
