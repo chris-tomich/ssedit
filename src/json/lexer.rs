@@ -706,3 +706,129 @@ impl JsonStreamLexer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    extern crate lazy_static;
+
+    use super::*;
+    use lazy_static::lazy_static;
+
+    lazy_static! {
+        static ref TABBED_JSON_SAMPLE: &'static str = r#"{
+	"id": "0001",
+	"type": "donut",
+	"name": "Cake",
+	"ppu": 0.55,
+	"style": [ "hole", "filled" ],
+	"batters":
+		{
+			"batter":
+				[
+					{ "id": "1001", "type": "Regular" },
+					{ "id": "1002", "type": "Chocolate" },
+					{ "id": "1003", "type": "Blueberry" },
+					{ "id": "1004", "type": "Devil's Food" }
+				]
+		},
+	"toppings":
+		{
+			"topping":
+			[
+				{ "id": "5001", "type": "None" },
+				{ "id": "5002", "type": "Glazed" },
+				{ "id": "5005", "type": "Sugar" },
+				{ "id": "5007", "type": "Powdered Sugar" },
+				{ "id": "5006", "type": "Chocolate with Sprinkles" },
+				{ "id": "5003", "type": "Chocolate" },
+				{ "id": "5004", "type": "Maple" }
+			]
+		}
+}"#;
+        static ref TOKENIZED_JSON: &'static str = "ObjectOpen({) -> NewLine -> Whitespace(\t) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"0001\",0001) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"donut\",donut) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"name\",name) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Cake\",Cake) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"ppu\",ppu) -> KeyValueDelimiter(:) -> Whitespace( ) -> FloatValue(0.55,0.55) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"style\",style) -> KeyValueDelimiter(:) -> Whitespace( ) -> ArrayOpen([) -> Whitespace( ) -> StringValue(\"hole\",hole) -> ArrayItemDelimiter(,) -> Whitespace( ) -> StringValue(\"filled\",filled) -> Whitespace( ) -> ArrayClose(]) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"batters\",batters) -> KeyValueDelimiter(:) -> NewLine -> Whitespace(\t\t) -> ObjectOpen({) -> NewLine -> Whitespace(\t\t\t) -> PropertyName(\"batter\",batter) -> KeyValueDelimiter(:) -> NewLine -> Whitespace(\t\t\t\t) -> ArrayOpen([) -> NewLine -> Whitespace(\t\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"1001\",1001) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Regular\",Regular) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"1002\",1002) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Chocolate\",Chocolate) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"1003\",1003) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Blueberry\",Blueberry) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"1004\",1004) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Devil's Food\",Devil's Food) -> Whitespace( ) -> ObjectClose(}) -> NewLine -> Whitespace(\t\t\t\t) -> ArrayClose(]) -> NewLine -> Whitespace(\t\t) -> ObjectClose(}) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"toppings\",toppings) -> KeyValueDelimiter(:) -> NewLine -> Whitespace(\t\t) -> ObjectOpen({) -> NewLine -> Whitespace(\t\t\t) -> PropertyName(\"topping\",topping) -> KeyValueDelimiter(:) -> NewLine -> Whitespace(\t\t\t) -> ArrayOpen([) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5001\",5001) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"None\",None) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5002\",5002) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Glazed\",Glazed) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5005\",5005) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Sugar\",Sugar) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5007\",5007) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Powdered Sugar\",Powdered Sugar) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5006\",5006) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Chocolate with Sprinkles\",Chocolate with Sprinkles) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5003\",5003) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Chocolate\",Chocolate) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5004\",5004) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Maple\",Maple) -> Whitespace( ) -> ObjectClose(}) -> NewLine -> Whitespace(\t\t\t) -> ArrayClose(]) -> NewLine -> Whitespace(\t\t) -> ObjectClose(}) -> NewLine -> ObjectClose(})";
+    }
+
+    fn write_tokens(is_first: bool, json_lexer: &mut JsonStreamLexer, tokenized: &mut String) -> bool {
+        let mut is_first = is_first;
+
+        loop {
+            match json_lexer.pop_token() {
+                JsonStreamStatus::None => break,
+                JsonStreamStatus::Token(token) => {
+                    if is_first {
+                        is_first = false;
+                    } else {
+                        tokenized.push_str(format!(" -> ").as_str());
+                    }
+                    tokenized.push_str(format!("{}", token).as_str());
+                    write_token(tokenized, token);
+                }
+            }
+        }
+
+        is_first
+    }
+
+    fn write_token(tokenized: &mut String, token: JsonToken) {
+        match token {
+            JsonToken::PropertyName { raw, name } => {
+                tokenized.push_str(format!("({},{})", raw, name).as_str());
+            }
+            JsonToken::StringValue { raw, value } => {
+                tokenized.push_str(format!("({},{})", raw, value).as_str());
+            }
+            JsonToken::IntegerValue { raw, value } => {
+                tokenized.push_str(format!("({},{})", raw, value).as_str());
+            }
+            JsonToken::FloatValue { raw, value } => {
+                tokenized.push_str(format!("({},{})", raw, value).as_str());
+            }
+            JsonToken::ObjectOpen(raw) => {
+                tokenized.push_str(format!("({})", raw).as_str());
+            }
+            JsonToken::ObjectClose(raw) => {
+                tokenized.push_str(format!("({})", raw).as_str());
+            }
+            JsonToken::ArrayOpen(raw) => {
+                tokenized.push_str(format!("({})", raw).as_str());
+            }
+            JsonToken::ArrayClose(raw) => {
+                tokenized.push_str(format!("({})", raw).as_str());
+            }
+            JsonToken::Whitespace(whitespace) => {
+                tokenized.push_str(format!("({})", whitespace).as_str());
+            }
+            JsonToken::NewLine(_) => {
+                tokenized.push_str(format!("").as_str());
+            }
+            JsonToken::ArrayItemDelimiter(delimiter) => {
+                tokenized.push_str(format!("({})", delimiter).as_str());
+            }
+            JsonToken::PropertyDelimiter(delimiter) => {
+                tokenized.push_str(format!("({})", delimiter).as_str());
+            }
+            JsonToken::KeyValueDelimiter(delimiter) => {
+                tokenized.push_str(format!("({})", delimiter).as_str());
+            }
+        }
+    }
+
+    #[test]
+    fn test_lexer() {
+        let mut json_lexer = JsonStreamLexer::new();
+
+        let mut is_first = true;
+
+        let mut tokenized = String::new();
+
+        for c in TABBED_JSON_SAMPLE.chars() {
+            json_lexer.push_char(c);
+
+            is_first = write_tokens(is_first, &mut json_lexer, &mut tokenized);
+        }
+
+        json_lexer.close();
+
+        assert_eq!(tokenized, String::from(TOKENIZED_JSON.clone()));
+    }
+}
