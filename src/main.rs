@@ -23,15 +23,15 @@ fn main() -> io::Result<()> {
 
     let args = SSEditArgs::parse();
 
-    let query_path = if args.query.is_empty() {
+    let query_path_str = if args.query.is_empty() {
         eprintln!("no select command provided");
         return Ok(());
     } else {
         args.query.as_str()
     };
 
-    let test_path = JsonPath::from(query_path);
-    let mut query = JsonQuery::from(&test_path);
+    let query_path = JsonPath::from(query_path_str);
+    let mut query = JsonQuery::from(&query_path);
 
     let mut capture;
 
