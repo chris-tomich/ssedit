@@ -30,7 +30,9 @@ impl<'a> JsonQuery<'a> {
                 self.path.increment_index();
             }
             JsonToken::ArrayClose(_) => self.path.recede(),
-            JsonToken::ArrayItemDelimiter(_) => self.path.increment_index(),
+            JsonToken::ArrayItemDelimiter(_) => {
+                self.path.increment_index();
+            }
             _ => {}
         }
 
@@ -123,12 +125,20 @@ impl<'a> JsonPathCursor<'a> {
         }
     }
 
+    fn is_array_root(&self) -> bool {
+        match &self.path.operations()[self.path_cursor] {
+            JsonPathOperator::ArrayRoot(_) => true,
+            _ => false,
+        }
+    }
+
     fn traverse(&mut self) {
-        if self.path_cursor != self.document_cursor {
+        if !self.is_array_root() && self.path_cursor != self.document_cursor {
             self.document_cursor += 1;
             return;
         } else {
             self.document_cursor += 1;
+
             self.document_array_cursors.push(-1);
         }
 
@@ -136,13 +146,13 @@ impl<'a> JsonPathCursor<'a> {
             return;
         }
 
-        if self.path_cursor == self.path.operations().len() - 1 {
+        if !self.is_array_root() && self.path_cursor == self.path.operations().len() - 1 {
             return;
         }
 
         match &self.path.operations()[self.path_cursor] {
             JsonPathOperator::ObjectRoot => self.path_cursor += 1,
-            JsonPathOperator::ArrayRoot(_) => todo!(),
+            JsonPathOperator::ArrayRoot(_) => {}
             JsonPathOperator::MemberAccess(_) => self.path_cursor += 1,
             JsonPathOperator::DeepScanMemberAccess(_) => todo!(),
             JsonPathOperator::ArrayIndex(_) => self.path_cursor += 1,
@@ -184,13 +194,20 @@ impl<'a> JsonPathCursor<'a> {
     }
 
     fn increment_index(&mut self) {
-        if self.path_cursor != self.document_cursor {
+        if !self.is_array_root() && self.path_cursor != self.document_cursor {
             return;
         }
 
         match &self.path.operations()[self.path_cursor] {
             JsonPathOperator::ObjectRoot => self.path_aligned = false,
-            JsonPathOperator::ArrayRoot(_) => self.path_aligned = false,
+            JsonPathOperator::ArrayRoot(path_index) => {
+                if let Some(document_array_cursor) = self.document_array_cursors.last_mut() {
+                    *document_array_cursor += 1;
+                    self.path_aligned = *document_array_cursor == *path_index;
+                } else {
+                    self.path_aligned = false
+                }
+            }
             JsonPathOperator::MemberAccess(_) => self.path_aligned = false,
             JsonPathOperator::DeepScanMemberAccess(_) => self.path_aligned = false,
             JsonPathOperator::ArrayIndex(path_index) => {
