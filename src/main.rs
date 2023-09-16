@@ -12,8 +12,16 @@ use json::{
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct SSEditArgs {
-    #[arg(short, long)]
+    #[arg(short, long, help = "the elements to query for using JSON path")]
     query: String,
+
+    #[arg(
+        short = 's',
+        long,
+        default_value_t = false,
+        help = "prints out the raw symbols parsed from the input, by default the best option will be chosen"
+    )]
+    raw_symbols: bool,
 }
 
 fn main() -> io::Result<()> {
@@ -35,6 +43,9 @@ fn main() -> io::Result<()> {
 
     let mut capture;
 
+    let mut captured_tokens = Vec::new();
+    let mut number_of_values = 0;
+
     loop {
         match io::stdin().lock().read(&mut buffer) {
             Ok(0) => break,
@@ -50,20 +61,31 @@ fn main() -> io::Result<()> {
                             capture = query.parse(&token);
 
                             if capture {
-                                match token {
-                                    JsonToken::PropertyName { raw, name: _ } => print!("{}", raw),
-                                    JsonToken::StringValue { raw, value: _ } => print!("{}", raw),
-                                    JsonToken::IntegerValue { raw, value: _ } => print!("{}", raw),
-                                    JsonToken::FloatValue { raw, value: _ } => print!("{}", raw),
-                                    JsonToken::ObjectOpen(raw) => print!("{}", raw),
-                                    JsonToken::ObjectClose(raw) => print!("{}", raw),
-                                    JsonToken::ArrayOpen(raw) => print!("{}", raw),
-                                    JsonToken::ArrayClose(raw) => print!("{}", raw),
-                                    JsonToken::Whitespace(raw) => print!("{}", raw),
-                                    JsonToken::NewLine(raw) => print!("{}", raw),
-                                    JsonToken::ArrayItemDelimiter(raw) => print!("{}", raw),
-                                    JsonToken::PropertyDelimiter(raw) => print!("{}", raw),
-                                    JsonToken::KeyValueDelimiter(raw) => print!("{}", raw),
+                                if args.raw_symbols {
+                                    match token {
+                                        JsonToken::PropertyName { raw, name: _ } => print!("{}", raw),
+                                        JsonToken::StringValue { raw, value: _ } => print!("{}", raw),
+                                        JsonToken::IntegerValue { raw, value: _ } => print!("{}", raw),
+                                        JsonToken::FloatValue { raw, value: _ } => print!("{}", raw),
+                                        JsonToken::ObjectOpen(raw) => print!("{}", raw),
+                                        JsonToken::ObjectClose(raw) => print!("{}", raw),
+                                        JsonToken::ArrayOpen(raw) => print!("{}", raw),
+                                        JsonToken::ArrayClose(raw) => print!("{}", raw),
+                                        JsonToken::Whitespace(raw) => print!("{}", raw),
+                                        JsonToken::NewLine(raw) => print!("{}", raw),
+                                        JsonToken::ArrayItemDelimiter(raw) => print!("{}", raw),
+                                        JsonToken::PropertyDelimiter(raw) => print!("{}", raw),
+                                        JsonToken::KeyValueDelimiter(raw) => print!("{}", raw),
+                                    }
+                                } else {
+                                    match token {
+                                        JsonToken::StringValue { raw: _, value: _ } => number_of_values += 1,
+                                        JsonToken::IntegerValue { raw: _, value: _ } => number_of_values += 1,
+                                        JsonToken::FloatValue { raw: _, value: _ } => number_of_values += 1,
+                                        _ => {}
+                                    }
+
+                                    captured_tokens.push(token);
                                 }
                             }
                         }
@@ -71,6 +93,37 @@ fn main() -> io::Result<()> {
                 }
             }
             Err(_) => todo!(),
+        }
+    }
+
+    if !args.raw_symbols {
+        if number_of_values <= 1 {
+            for token in captured_tokens {
+                match token {
+                    JsonToken::StringValue { raw: _, value } => print!("{}", value),
+                    JsonToken::IntegerValue { raw: _, value } => print!("{}", value),
+                    JsonToken::FloatValue { raw: _, value } => print!("{}", value),
+                    _ => {}
+                }
+            }
+        } else {
+            for token in captured_tokens {
+                match token {
+                    JsonToken::PropertyName { raw, name: _ } => print!("{}", raw),
+                    JsonToken::StringValue { raw, value: _ } => print!("{}", raw),
+                    JsonToken::IntegerValue { raw, value: _ } => print!("{}", raw),
+                    JsonToken::FloatValue { raw, value: _ } => print!("{}", raw),
+                    JsonToken::ObjectOpen(raw) => print!("{}", raw),
+                    JsonToken::ObjectClose(raw) => print!("{}", raw),
+                    JsonToken::ArrayOpen(raw) => print!("{}", raw),
+                    JsonToken::ArrayClose(raw) => print!("{}", raw),
+                    JsonToken::Whitespace(raw) => print!("{}", raw),
+                    JsonToken::NewLine(raw) => print!("{}", raw),
+                    JsonToken::ArrayItemDelimiter(raw) => print!("{}", raw),
+                    JsonToken::PropertyDelimiter(raw) => print!("{}", raw),
+                    JsonToken::KeyValueDelimiter(raw) => print!("{}", raw),
+                }
+            }
         }
     }
 
