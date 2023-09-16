@@ -66,6 +66,7 @@ fn main() -> io::Result<()> {
                                 if args.raw_symbols {
                                     match token {
                                         JsonToken::PropertyName { raw, name: _ } => print!("{}", raw),
+                                        JsonToken::BooleanValue { raw, value: _ } => print!("{}", raw),
                                         JsonToken::StringValue { raw, value: _ } => print!("{}", raw),
                                         JsonToken::IntegerValue { raw, value: _ } => print!("{}", raw),
                                         JsonToken::FloatValue { raw, value: _ } => print!("{}", raw),
@@ -112,6 +113,7 @@ fn main() -> io::Result<()> {
             for token in captured_tokens {
                 match token {
                     JsonToken::PropertyName { raw, name: _ } => print!("{}", raw),
+                    JsonToken::BooleanValue { raw, value: _ } => print!("{}", raw),
                     JsonToken::StringValue { raw, value: _ } => print!("{}", raw),
                     JsonToken::IntegerValue { raw, value: _ } => print!("{}", raw),
                     JsonToken::FloatValue { raw, value: _ } => print!("{}", raw),
