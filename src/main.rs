@@ -52,7 +52,9 @@ fn main() -> io::Result<()> {
             Ok(_) => {
                 let c = buffer[0] as char;
 
-                json_lexer.push_char(c);
+                if let Err(msg) = json_lexer.push_char(c) {
+                    panic!("{}", msg);
+                }
 
                 loop {
                     match json_lexer.pop_token() {
