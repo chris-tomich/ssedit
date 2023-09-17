@@ -11,6 +11,8 @@ homepage = "https://github.com/chris-tomich/ssedit"
 repository = "https://github.com/chris-tomich/ssedit"
 documentation = "https://github.com/chris-tomich/ssedit"
 license = "MIT"
+keywords = ["stream", "editor", "json"]
+categories = ["command-line-utilities", "text-editors", "config"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
