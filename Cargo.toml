@@ -7,6 +7,10 @@ description = """
 A stream editor for structured data formats like JSON, YAML, and INI that retains all original formatting and will
 retain original tabs/spaces/line ending formats.
 """
+homepage = "https://github.com/chris-tomich/ssedit"
+repository = "https://github.com/chris-tomich/ssedit"
+documentation = "https://github.com/chris-tomich/ssedit"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
