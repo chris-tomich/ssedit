@@ -10,7 +10,7 @@ use json::{
 };
 
 #[derive(Parser, Debug)]
-#[command(help_template = "ssedit {version}\n{author-with-newline} {about-section} {usage-heading} {usage} \n {all-args} {tab}")]
+#[command(help_template = "ssedit {version}\n{author-with-newline}https://github.com/chris-tomich/ssedit\n {about-section} {usage-heading} {usage} \n {all-args} {tab}")]
 #[command(author, version, about)]
 struct SSEditArgs {
     #[arg(short, long, help = "the elements to query using JSON path")]
