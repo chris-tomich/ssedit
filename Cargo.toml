@@ -2,6 +2,11 @@
 name = "ssedit"
 version = "0.1.0"
 edition = "2021"
+authors = ["Chris Tomich <contact@christomich.com>"]
+description = """
+A stream editor for structured data formats like JSON, YAML, and INI that retains all original formatting and will
+retain original tabs/spaces/line ending formats.
+"""
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
