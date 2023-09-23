@@ -9,6 +9,8 @@ pub enum JsonToken {
     StringValue { raw: String, value: String },
     IntegerValue { raw: String, value: isize },
     FloatValue { raw: String, value: f64 },
+    NullValue(String),
+    UndefinedValue(String),
     ObjectOpen(String),
     ObjectClose(String),
     ArrayOpen(String),
@@ -28,6 +30,8 @@ pub enum JsonPartialToken {
     ArrayValue,
     BooleanValue { raw: String, value: bool },
     StringValue { raw: String, value: String },
+    NullValue { raw: String },
+    UndefinedValue { raw: String },
     Root,
     NumberValue(String),
     Whitespace(String),
@@ -67,6 +71,8 @@ impl JsonStreamLexer {
                 JsonPartialToken::PropertyValue => {}
                 JsonPartialToken::ArrayValue => {}
                 JsonPartialToken::BooleanValue { raw, value } => self.tokens.push_back(JsonToken::BooleanValue { raw, value }),
+                JsonPartialToken::NullValue { raw } => self.tokens.push_back(JsonToken::NullValue(raw)),
+                JsonPartialToken::UndefinedValue { raw } => self.tokens.push_back(JsonToken::UndefinedValue(raw)),
                 JsonPartialToken::StringValue { raw, value } => self.tokens.push_back(JsonToken::StringValue { raw, value }),
                 JsonPartialToken::Root => {}
                 JsonPartialToken::NumberValue(raw_number) => {
@@ -126,6 +132,8 @@ impl JsonStreamLexer {
                             self.partial_tokens.push(JsonPartialToken::Object);
                         }
                         JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                        JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                        JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                         JsonPartialToken::StringValue { mut raw, mut value } => {
                             raw.push(c);
                             value.push(c);
@@ -158,6 +166,8 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyValue => self.tokens.push_back(JsonToken::ObjectClose(String::from(c))),
                         JsonPartialToken::ArrayValue => self.is_error = true,
                         JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                        JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                        JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                         JsonPartialToken::StringValue { mut raw, mut value } => {
                             raw.push(c);
                             value.push(c);
@@ -229,6 +239,8 @@ impl JsonStreamLexer {
                             self.partial_tokens.push(JsonPartialToken::Array);
                         }
                         JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                        JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                        JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                         JsonPartialToken::StringValue { mut raw, mut value } => {
                             raw.push(c);
                             value.push(c);
@@ -264,6 +276,8 @@ impl JsonStreamLexer {
                                         self.partial_tokens.push(JsonPartialToken::Array);
                                     }
                                     JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                                    JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                                    JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                                     JsonPartialToken::StringValue { raw: _, value: _ } => self.is_error = true,
                                     JsonPartialToken::Root => {
                                         self.tokens.push_back(JsonToken::ArrayOpen(String::from(c)));
@@ -291,6 +305,8 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyValue => self.is_error = true,
                         JsonPartialToken::ArrayValue => self.tokens.push_back(JsonToken::ArrayClose(String::from(c))),
                         JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                        JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                        JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                         JsonPartialToken::StringValue { mut raw, mut value } => {
                             raw.push(c);
                             value.push(c);
@@ -366,6 +382,8 @@ impl JsonStreamLexer {
                             });
                         }
                         JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                        JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                        JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                         JsonPartialToken::StringValue { mut raw, value } => {
                             raw.push(c);
                             if let Some(partial_token) = self.partial_tokens.pop() {
@@ -390,6 +408,8 @@ impl JsonStreamLexer {
                                         self.tokens.push_back(JsonToken::StringValue { raw, value });
                                     }
                                     JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                                    JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                                    JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                                     JsonPartialToken::StringValue { raw: _, value: _ } => self.is_error = true,
                                     JsonPartialToken::Root => self.is_error = true,
                                     JsonPartialToken::NumberValue(_) => self.is_error = true,
@@ -442,6 +462,8 @@ impl JsonStreamLexer {
                                         });
                                     }
                                     JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                                    JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                                    JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                                     JsonPartialToken::StringValue { raw: _, value: _ } => self.is_error = true,
                                     JsonPartialToken::Root => self.is_error = true,
                                     JsonPartialToken::NumberValue(_) => self.is_error = true,
@@ -480,6 +502,8 @@ impl JsonStreamLexer {
                             self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
                         }
                         JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                        JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                        JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                         JsonPartialToken::StringValue { mut raw, mut value } => {
                             raw.push(c);
                             value.push(c);
@@ -520,6 +544,8 @@ impl JsonStreamLexer {
                                         self.partial_tokens.push(JsonPartialToken::Whitespace(String::from(c)));
                                     }
                                     JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                                    JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                                    JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                                     JsonPartialToken::StringValue { raw: _, value: _ } => self.is_error = true,
                                     JsonPartialToken::Root => self.is_error = true,
                                     JsonPartialToken::NumberValue(_) => self.is_error = true,
@@ -550,6 +576,8 @@ impl JsonStreamLexer {
                         }
                         JsonPartialToken::ArrayValue => self.is_error = true,
                         JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                        JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                        JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                         JsonPartialToken::StringValue { mut raw, mut value } => {
                             raw.push(c);
                             value.push(c);
@@ -570,6 +598,8 @@ impl JsonStreamLexer {
                                     }
                                     JsonPartialToken::ArrayValue => self.is_error = true,
                                     JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                                    JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                                    JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                                     JsonPartialToken::StringValue { raw: _, value: _ } => self.is_error = true,
                                     JsonPartialToken::Root => self.is_error = true,
                                     JsonPartialToken::NumberValue(_) => self.is_error = true,
@@ -600,6 +630,8 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyValue => self.tokens.push_back(JsonToken::PropertyDelimiter(String::from(c))),
                         JsonPartialToken::ArrayValue => self.tokens.push_back(JsonToken::ArrayItemDelimiter(String::from(c))),
                         JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                        JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                        JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                         JsonPartialToken::StringValue { raw: _, value: _ } => panic!("malformed string"),
                         JsonPartialToken::Root => self.is_error = true,
                         JsonPartialToken::NumberValue(raw_number) => {
@@ -640,6 +672,8 @@ impl JsonStreamLexer {
                                         self.partial_tokens.push(JsonPartialToken::ArrayValue);
                                     }
                                     JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                                    JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                                    JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                                     JsonPartialToken::StringValue { raw: _, value: _ } => self.is_error = true,
                                     JsonPartialToken::Root => self.is_error = true,
                                     JsonPartialToken::NumberValue(_) => self.is_error = true,
@@ -664,6 +698,8 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyValue => self.partial_tokens.push(JsonPartialToken::PropertyValue),
                         JsonPartialToken::ArrayValue => self.partial_tokens.push(JsonPartialToken::ArrayValue),
                         JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                        JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                        JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                         JsonPartialToken::StringValue { raw: _, value: _ } => self.is_error = true,
                         JsonPartialToken::Root => self.partial_tokens.push(JsonPartialToken::Root),
                         JsonPartialToken::NumberValue(raw_number) => {
@@ -700,6 +736,8 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyValue => self.is_error = true,
                         JsonPartialToken::ArrayValue => self.is_error = true,
                         JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                        JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                        JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                         JsonPartialToken::StringValue { mut raw, mut value } => {
                             raw.push(c);
                             value.push(c);
@@ -732,6 +770,8 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyValue => self.partial_tokens.push(JsonPartialToken::NumberValue(String::from(c))),
                         JsonPartialToken::ArrayValue => self.partial_tokens.push(JsonPartialToken::NumberValue(String::from(c))),
                         JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                        JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                        JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                         JsonPartialToken::StringValue { mut raw, mut value } => {
                             raw.push(c);
                             value.push(c);
@@ -761,6 +801,8 @@ impl JsonStreamLexer {
                                         self.partial_tokens.push(JsonPartialToken::NumberValue(String::from(c)));
                                     }
                                     JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                                    JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                                    JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                                     JsonPartialToken::StringValue { raw: _, value: _ } => self.is_error = true,
                                     JsonPartialToken::Root => self.is_error = true,
                                     JsonPartialToken::NumberValue(_) => self.is_error = true,
@@ -775,7 +817,7 @@ impl JsonStreamLexer {
                     self.is_error = true;
                 }
             }
-            't' | 'r' | 'u' | 'e' | 'f' | 'a' | 'l' | 's' | 'T' | 'R' | 'U' | 'E' | 'F' | 'A' | 'L' | 'S' => {
+            't' | 'r' | 'u' | 'e' | 'f' | 'a' | 'l' | 's' | 'n' | 'd' | 'i' | 'T' | 'R' | 'U' | 'E' | 'F' | 'A' | 'L' | 'S' | 'N' | 'D' | 'I' => {
                 if let Some(partial_token) = self.partial_tokens.pop() {
                     match partial_token {
                         JsonPartialToken::Array => self.is_error = true,
@@ -784,11 +826,15 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyValue => match c {
                             't' | 'T' => self.partial_tokens.push(JsonPartialToken::BooleanValue { raw: String::from(c), value: true }),
                             'f' | 'F' => self.partial_tokens.push(JsonPartialToken::BooleanValue { raw: String::from(c), value: false }),
+                            'n' | 'N' => self.partial_tokens.push(JsonPartialToken::NullValue { raw: String::from(c) }),
+                            'u' | 'U' => self.partial_tokens.push(JsonPartialToken::UndefinedValue { raw: String::from(c) }),
                             _ => self.is_error = true,
                         },
                         JsonPartialToken::ArrayValue => match c {
                             't' | 'T' => self.partial_tokens.push(JsonPartialToken::BooleanValue { raw: String::from(c), value: true }),
                             'f' | 'F' => self.partial_tokens.push(JsonPartialToken::BooleanValue { raw: String::from(c), value: false }),
+                            'n' | 'N' => self.partial_tokens.push(JsonPartialToken::NullValue { raw: String::from(c) }),
+                            'u' | 'U' => self.partial_tokens.push(JsonPartialToken::UndefinedValue { raw: String::from(c) }),
                             _ => self.is_error = true,
                         },
                         JsonPartialToken::BooleanValue { mut raw, value } => {
@@ -804,13 +850,34 @@ impl JsonStreamLexer {
                             value.push(c);
                             self.partial_tokens.push(JsonPartialToken::StringValue { raw, value });
                         }
+                        JsonPartialToken::NullValue { mut raw } => {
+                            raw.push(c);
+                            if raw == "null" {
+                                self.tokens.push_back(JsonToken::NullValue(raw));
+                            } else {
+                                self.partial_tokens.push(JsonPartialToken::NullValue { raw });
+                            }
+                        }
+                        JsonPartialToken::UndefinedValue { mut raw } => {
+                            raw.push(c);
+                            if raw == "undefined" {
+                                self.tokens.push_back(JsonToken::UndefinedValue(raw));
+                            } else {
+                                self.partial_tokens.push(JsonPartialToken::UndefinedValue { raw });
+                            }
+                        }
                         JsonPartialToken::Root => self.is_error = true,
                         JsonPartialToken::NumberValue(_) => self.is_error = true,
-                        JsonPartialToken::Whitespace(_) => match c {
-                            't' | 'T' => self.partial_tokens.push(JsonPartialToken::BooleanValue { raw: String::from(c), value: true }),
-                            'f' | 'F' => self.partial_tokens.push(JsonPartialToken::BooleanValue { raw: String::from(c), value: false }),
-                            _ => self.is_error = true,
-                        },
+                        JsonPartialToken::Whitespace(whitespace) => {
+                            self.tokens.push_back(JsonToken::Whitespace(whitespace));
+                            match c {
+                                't' | 'T' => self.partial_tokens.push(JsonPartialToken::BooleanValue { raw: String::from(c), value: true }),
+                                'f' | 'F' => self.partial_tokens.push(JsonPartialToken::BooleanValue { raw: String::from(c), value: false }),
+                                'n' | 'N' => self.partial_tokens.push(JsonPartialToken::NullValue { raw: String::from(c) }),
+                                'u' | 'U' => self.partial_tokens.push(JsonPartialToken::UndefinedValue { raw: String::from(c) }),
+                                _ => self.is_error = true,
+                            }
+                        }
                     }
                 } else {
                     self.is_error = true;
@@ -825,6 +892,8 @@ impl JsonStreamLexer {
                         JsonPartialToken::PropertyValue => self.is_error = true,
                         JsonPartialToken::ArrayValue => self.is_error = true,
                         JsonPartialToken::BooleanValue { raw: _, value: _ } => self.is_error = true,
+                        JsonPartialToken::NullValue { raw: _ } => self.is_error = true,
+                        JsonPartialToken::UndefinedValue { raw: _ } => self.is_error = true,
                         JsonPartialToken::StringValue { mut raw, mut value } => {
                             raw.push(c);
                             value.push(c);
@@ -884,9 +953,12 @@ mod tests {
 				{ "id": "5003", "type": "Chocolate" },
 				{ "id": "5004", "type": "Maple" }
 			]
-		}
+		},
+	"null-test": null,
+	"undefined-test": undefined,
+	"boolean-test": true
 }"#;
-        static ref TOKENIZED_JSON: &'static str = "ObjectOpen({) -> NewLine -> Whitespace(\t) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"0001\",0001) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"donut\",donut) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"name\",name) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Cake\",Cake) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"ppu\",ppu) -> KeyValueDelimiter(:) -> Whitespace( ) -> FloatValue(0.55,0.55) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"style\",style) -> KeyValueDelimiter(:) -> Whitespace( ) -> ArrayOpen([) -> Whitespace( ) -> StringValue(\"hole\",hole) -> ArrayItemDelimiter(,) -> Whitespace( ) -> StringValue(\"filled\",filled) -> Whitespace( ) -> ArrayClose(]) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"batters\",batters) -> KeyValueDelimiter(:) -> NewLine -> Whitespace(\t\t) -> ObjectOpen({) -> NewLine -> Whitespace(\t\t\t) -> PropertyName(\"batter\",batter) -> KeyValueDelimiter(:) -> NewLine -> Whitespace(\t\t\t\t) -> ArrayOpen([) -> NewLine -> Whitespace(\t\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"1001\",1001) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Regular\",Regular) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"1002\",1002) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Chocolate\",Chocolate) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"1003\",1003) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Blueberry\",Blueberry) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"1004\",1004) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Devil's Food\",Devil's Food) -> Whitespace( ) -> ObjectClose(}) -> NewLine -> Whitespace(\t\t\t\t) -> ArrayClose(]) -> NewLine -> Whitespace(\t\t) -> ObjectClose(}) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"toppings\",toppings) -> KeyValueDelimiter(:) -> NewLine -> Whitespace(\t\t) -> ObjectOpen({) -> NewLine -> Whitespace(\t\t\t) -> PropertyName(\"topping\",topping) -> KeyValueDelimiter(:) -> NewLine -> Whitespace(\t\t\t) -> ArrayOpen([) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5001\",5001) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"None\",None) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5002\",5002) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Glazed\",Glazed) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5005\",5005) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Sugar\",Sugar) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5007\",5007) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Powdered Sugar\",Powdered Sugar) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5006\",5006) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Chocolate with Sprinkles\",Chocolate with Sprinkles) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5003\",5003) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Chocolate\",Chocolate) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5004\",5004) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Maple\",Maple) -> Whitespace( ) -> ObjectClose(}) -> NewLine -> Whitespace(\t\t\t) -> ArrayClose(]) -> NewLine -> Whitespace(\t\t) -> ObjectClose(}) -> NewLine -> ObjectClose(})";
+        static ref TOKENIZED_JSON: &'static str = "ObjectOpen({) -> NewLine -> Whitespace(\t) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"0001\",0001) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"donut\",donut) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"name\",name) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Cake\",Cake) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"ppu\",ppu) -> KeyValueDelimiter(:) -> Whitespace( ) -> FloatValue(0.55,0.55) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"style\",style) -> KeyValueDelimiter(:) -> Whitespace( ) -> ArrayOpen([) -> Whitespace( ) -> StringValue(\"hole\",hole) -> ArrayItemDelimiter(,) -> Whitespace( ) -> StringValue(\"filled\",filled) -> Whitespace( ) -> ArrayClose(]) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"batters\",batters) -> KeyValueDelimiter(:) -> NewLine -> Whitespace(\t\t) -> ObjectOpen({) -> NewLine -> Whitespace(\t\t\t) -> PropertyName(\"batter\",batter) -> KeyValueDelimiter(:) -> NewLine -> Whitespace(\t\t\t\t) -> ArrayOpen([) -> NewLine -> Whitespace(\t\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"1001\",1001) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Regular\",Regular) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"1002\",1002) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Chocolate\",Chocolate) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"1003\",1003) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Blueberry\",Blueberry) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"1004\",1004) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Devil's Food\",Devil's Food) -> Whitespace( ) -> ObjectClose(}) -> NewLine -> Whitespace(\t\t\t\t) -> ArrayClose(]) -> NewLine -> Whitespace(\t\t) -> ObjectClose(}) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"toppings\",toppings) -> KeyValueDelimiter(:) -> NewLine -> Whitespace(\t\t) -> ObjectOpen({) -> NewLine -> Whitespace(\t\t\t) -> PropertyName(\"topping\",topping) -> KeyValueDelimiter(:) -> NewLine -> Whitespace(\t\t\t) -> ArrayOpen([) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5001\",5001) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"None\",None) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5002\",5002) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Glazed\",Glazed) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5005\",5005) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Sugar\",Sugar) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5007\",5007) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Powdered Sugar\",Powdered Sugar) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5006\",5006) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Chocolate with Sprinkles\",Chocolate with Sprinkles) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5003\",5003) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Chocolate\",Chocolate) -> Whitespace( ) -> ObjectClose(}) -> ArrayItemDelimiter(,) -> NewLine -> Whitespace(\t\t\t\t) -> ObjectOpen({) -> Whitespace( ) -> PropertyName(\"id\",id) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"5004\",5004) -> PropertyDelimiter(,) -> Whitespace( ) -> PropertyName(\"type\",type) -> KeyValueDelimiter(:) -> Whitespace( ) -> StringValue(\"Maple\",Maple) -> Whitespace( ) -> ObjectClose(}) -> NewLine -> Whitespace(\t\t\t) -> ArrayClose(]) -> NewLine -> Whitespace(\t\t) -> ObjectClose(}) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"null-test\",null-test) -> KeyValueDelimiter(:) -> Whitespace( ) -> NullValue(null) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"undefined-test\",undefined-test) -> KeyValueDelimiter(:) -> Whitespace( ) -> UndefinedValue(undefined) -> PropertyDelimiter(,) -> NewLine -> Whitespace(\t) -> PropertyName(\"boolean-test\",boolean-test) -> KeyValueDelimiter(:) -> Whitespace( ) -> BooleanValue(true,true) -> NewLine -> ObjectClose(})";
     }
 
     fn write_tokens(is_first: bool, json_lexer: &mut JsonStreamLexer, tokenized: &mut String) -> bool {
@@ -926,6 +998,12 @@ mod tests {
             }
             JsonToken::FloatValue { raw, value } => {
                 tokenized.push_str(format!("({},{})", raw, value).as_str());
+            }
+            JsonToken::NullValue(raw) => {
+                tokenized.push_str(format!("({})", raw).as_str());
+            }
+            JsonToken::UndefinedValue(raw) => {
+                tokenized.push_str(format!("({})", raw).as_str());
             }
             JsonToken::ObjectOpen(raw) => {
                 tokenized.push_str(format!("({})", raw).as_str());
